@@ -193,24 +193,27 @@ export const DEFAULT_WORLD_INFO_CHARACTER_DEFINITION = `### {{character.name}}
 
 export const DEFAULT_EXISTING_FIELDS_DEFINITION = `=== CURRENT CHARACTER FIELD VALUES ===
 {{#if fields.core}}
-**Core Fields:**
+<CoreFields>
 {{#each fields.core as |value key|}}
-- **{{key}}:** {{#if value}}{{value}}{{else}}*Not provided*{{/if}}
+  <{{xmlSafe key}}>{{#if value}}{{value}}{{else}}*Not provided*{{/if}}</{{xmlSafe key}}>
 {{/each}}
+</CoreFields>
 {{/if}}
 
 {{#if fields.alternate_greetings}}
-**Alternate Greetings:**
+<AlternateGreetings>
 {{#each fields.alternate_greetings as |value key|}}
-- **{{key}}:** {{#if value}}{{value}}{{else}}*Not provided*{{/if}}
+  <{{xmlSafe key}}>{{#if value}}{{value}}{{else}}*Not provided*{{/if}}</{{xmlSafe key}}>
 {{/each}}
+</AlternateGreetings>
 {{/if}}
 
 {{#if fields.draft}}
-**Draft Fields:**
+<DraftFields>
 {{#each fields.draft as |value key|}}
-- **{{key}}:** {{#if value}}{{value}}{{else}}*Not provided*{{/if}}
+  <{{xmlSafe key}}>{{#if value}}{{value}}{{else}}*Not provided*{{/if}}</{{xmlSafe key}}>
 {{/each}}
+</DraftFields>
 {{/if}}`;
 
 export const DEFAULT_PERSONA_DESCRIPTION = `## User's Persona Description

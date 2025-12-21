@@ -2,10 +2,22 @@
     <div class="chat-header">
         <h3>Character Brainstorming Chat</h3>
         <div class="chat-actions">
-            <button id="clear_chat" class="menu_button" title="Clear chat history">
+            <select id="saved_chats_select" class="text_pole" style="max-width: 200px;">
+                <option value="">-- Saved Chats --</option>
+            </select>
+            <button id="save_chat" class="menu_button" title="Save current chat history">
+                <i class="fa-solid fa-floppy-disk"></i> Save
+            </button>
+            <button id="load_chat" class="menu_button" title="Load selected chat">
+                <i class="fa-solid fa-folder-open"></i> Load
+            </button>
+            <button id="delete_saved_chat" class="menu_button" title="Delete selected chat">
+                <i class="fa-solid fa-trash-can"></i>
+            </button>
+            <button id="clear_chat" class="menu_button" title="Clear working chat history">
                 <i class="fa-solid fa-trash"></i> Clear
             </button>
-            <button id="export_chat" class="menu_button" title="Export chat history">
+            <button id="export_chat" class="menu_button" title="Export current chat history">
                 <i class="fa-solid fa-download"></i> Export
             </button>
         </div>

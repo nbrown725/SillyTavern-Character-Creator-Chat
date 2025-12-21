@@ -1,4 +1,5 @@
 // Unified types for the extension
+export * from './types/models.js';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 
@@ -34,21 +35,4 @@ export interface CharacterField {
   prompt: string;
   value: string;
   label: string;
-}
-
-// Creator chat history stored in session
-export interface CreatorChatHistory {
-  messages: CreatorChatMessage[];
-}
-
-// Main session interface
-export interface Session {
-  selectedCharacterIndexes: string[];
-  selectedWorldNames: string[];
-  fields: Record<string, CharacterField>;
-  draftFields: Record<string, CharacterField>;
-  lastLoadedCharacterId: string;
-  creatorChatHistory: CreatorChatHistory;
-  // Store image thumbnails separately to manage storage size
-  imageThumbnails?: Record<string, string>; // imageId -> thumbnail data URL
 }

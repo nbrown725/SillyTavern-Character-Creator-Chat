@@ -7,7 +7,7 @@ import { runCharacterFieldGeneration, globalContext, CharacterFieldName, CHARACT
 import { SessionService } from '../services/sessionService.js';
 import { ImageService } from '../services/imageService.js';
 import { settingsManager, ExtensionSettings } from '../settings.js';
-import { Session, CharacterField } from '../types.js';
+import { WorkingSession, FieldValue } from '../types.js';
 
 import * as Handlebars from 'handlebars';
 
@@ -94,6 +94,7 @@ export class CharacterController {
 
     // Generate content
     const generatedContent = await runCharacterFieldGeneration({
+      mode: 'field',
       profileId: settings.profileId,
       userPrompt,
       buildPromptOptions,
@@ -219,7 +220,7 @@ export class CharacterController {
     this.sessionService.updateSession({
       fields: updatedSession.fields,
       draftFields: {},
-      creatorChatHistory: { messages: [] }
+      creatorChat: { messages: [] }
     });
   }
 
@@ -500,7 +501,7 @@ export class CharacterController {
     }
   }
 
-  private async loadWorldInfoEntries(session: Session): Promise<Record<string, WIEntry[]>> {
+  private async loadWorldInfoEntries(session: WorkingSession): Promise<Record<string, WIEntry[]>> {
     const entriesGroupByWorldName: Record<string, WIEntry[]> = {};
     
     await Promise.all(

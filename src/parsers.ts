@@ -56,12 +56,10 @@ export function parseResponse(content: string, format: 'xml' | 'json' | 'none', 
           return responseValueXml['#text'].trim();
         } else if (parsedXml && Object.keys(parsedXml).length > 0) {
           // Handle case with multiple keys by taking first value
-          const firstValue = Object.values(parsedXml)[0];
+          const firstValue = Object.values(parsedXml)[0] as any;
           if (typeof firstValue === 'string') {
             return firstValue.trim();
-            // @ts-ignore
-          } else if (typeof firstValue?.['#text'] === 'string') {
-            // @ts-ignore
+          } else if (firstValue && typeof firstValue === 'object' && '#text' in firstValue && typeof firstValue['#text'] === 'string') {
             return firstValue['#text'].trim();
           }
         }

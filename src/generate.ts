@@ -5,7 +5,7 @@ import { Character } from 'sillytavern-utils-lib/types';
 import { WIEntry } from 'sillytavern-utils-lib/types/world-info';
 import { name1, st_echo } from 'sillytavern-utils-lib/config';
 import { ExtensionSettings, MessageRole, OutputFormat, settingsManager } from './settings.js';
-import { Session, CreatorChatMessage, ContentPart } from './types.js';
+import { WorkingSession, ContentPart } from './types.js';
 import { MessageBuilder } from './services/messageBuilder.js';
 
 import * as Handlebars from 'handlebars';
@@ -39,11 +39,12 @@ export type { CharacterField, Session, CreatorChatMessage as ChatMessage } from 
 const dumbSettings = new ExtensionSettingsManager<ExtensionSettings>('dumb', {}).getSettings();
 
 export interface RunCharacterFieldGenerationParams {
+  mode: 'chat' | 'field';
   profileId: string;
   userPrompt: string;
   buildPromptOptions: BuildPromptOptions;
   continueFrom?: string;
-  session: Session;
+  session: WorkingSession;
   allCharacters: Character[];
   entriesGroupByWorldName: Record<string, WIEntry[]>;
   formatDescription: {
@@ -58,6 +59,7 @@ export interface RunCharacterFieldGenerationParams {
 }
 
 export async function runCharacterFieldGeneration({
+  mode,
   profileId,
   userPrompt,
   buildPromptOptions,
@@ -88,6 +90,7 @@ export async function runCharacterFieldGeneration({
   // Use MessageBuilder to construct the full message array
   const messageBuilder = MessageBuilder.getInstance();
   const messages = await messageBuilder.buildMessages({
+    mode,
     targetField,
     userPrompt,
     session,

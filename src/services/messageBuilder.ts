@@ -1,18 +1,19 @@
 import { buildPrompt, BuildPromptOptions, Message } from 'sillytavern-utils-lib';
 import { Character } from 'sillytavern-utils-lib/types';
 import { WIEntry } from 'sillytavern-utils-lib/types/world-info';
-import { name1, st_echo } from 'sillytavern-utils-lib/config';
+import { name1, st_echo, this_chid } from 'sillytavern-utils-lib/config';
 import { ExtensionSettings, settingsManager } from '../settings.js';
-import { Session, ContentPart } from '../types.js';
+import { WorkingSession, ContentPart, CreatorMessage } from '../types.js';
 import { CHARACTER_FIELDS, CHARACTER_LABELS, CharacterFieldName, globalContext } from '../generate.js';
 import { getPrefilled } from '../parsers.js';
 
 import * as Handlebars from 'handlebars';
 
 export interface MessageBuilderOptions {
+  mode: 'chat' | 'field';
   targetField: CharacterFieldName | string;
   userPrompt: string;
-  session: Session;
+  session: WorkingSession;
   allCharacters: Character[];
   entriesGroupByWorldName: Record<string, WIEntry[]>;
   buildPromptOptions: BuildPromptOptions;
@@ -39,6 +40,7 @@ export class MessageBuilder {
    */
   async buildMessages(options: MessageBuilderOptions): Promise<Message[]> {
     const {
+      mode,
       targetField,
       userPrompt,
       session,
@@ -76,8 +78,8 @@ export class MessageBuilder {
     const messages: Message[] = [];
 
     for (const mainContext of mainContextList) {
-      if (mainContext.promptName === 'chatHistory') {
-        // Special handling for ST chat history
+      if (mainContext.promptName === 'roleplayContext' || mainContext.promptName === 'chatHistory') {
+        // RP Chat (Second Class) - Flattened to text
         const selectedApi = this.getSelectedApi(buildPromptOptions);
         const prompt = await buildPrompt(selectedApi, buildPromptOptions);
         if (prompt.warnings && prompt.warnings.length > 0) {
@@ -85,43 +87,60 @@ export class MessageBuilder {
             st_echo('warning', warning);
           }
         }
-        // Filter out system/auxiliary messages injected by connection presets; keep only user/assistant turns
+        
         const chatOnly = (prompt.result || []).filter((m: any) => m.role === 'user' || m.role === 'assistant');
-        messages.push(...chatOnly);
+        if (chatOnly.length > 0) {
+          const rpContext = this.buildRoleplayContext(chatOnly);
+          messages.push({
+            role: 'system', // RP context is sent as system info
+            content: rpContext,
+          } as Message);
+        }
         continue;
       }
 
       if (mainContext.promptName === 'creatorChatHistory') {
-        // Special handling for creator chat history - restore images for AI context
-        const chatMessages = session.creatorChatHistory?.messages ?? [];
-        // Import SessionService dynamically to avoid circular imports
-        const { SessionService } = await import('./sessionService.js');
-        const sessionService = SessionService.getInstance();
-        const convertedMessages: Message[] = chatMessages.map((msg, index) => {
-          const restoredMsg = sessionService.getMessageForAIContext(msg);
-          // If bottom image parts are going to be appended separately, avoid duplicating them from the last user message
-          if (
-            additionalContentPartsForCurrentUserMessage &&
-            Array.isArray(restoredMsg.content) &&
-            restoredMsg.role === 'user' &&
-            index === chatMessages.length - 1
-          ) {
-            const textOnlyParts = (restoredMsg.content as any[]).filter((part) => part?.type === 'text');
+        // Creator Chat (First Class) - Keep roles, wrap in <ChatHistory>
+        const chatMessages = session.creatorChat?.messages ?? [];
+        if (chatMessages.length > 0) {
+          const { SessionService } = await import('./sessionService.js');
+          const sessionService = SessionService.getInstance();
+          
+          // Use 'user' role for tags to ensure they stay with the chat turns during consolidation
+          messages.push({ role: 'user', content: '<ChatHistory>' } as Message);
+          
+          const convertedMessages: Message[] = chatMessages.map((msg, index) => {
+            const restoredMsg = sessionService.getMessageForAIContext(msg);
+            if (
+              additionalContentPartsForCurrentUserMessage &&
+              Array.isArray(restoredMsg.content) &&
+              restoredMsg.role === 'user' &&
+              index === chatMessages.length - 1
+            ) {
+              const textOnlyParts = (restoredMsg.content as any[]).filter((part) => part?.type === 'text');
+              return {
+                role: restoredMsg.role,
+                content: textOnlyParts.length > 0 ? (textOnlyParts as any) : '',
+              } as Message;
+            }
             return {
               role: restoredMsg.role,
-              content: textOnlyParts.length > 0 ? (textOnlyParts as any) : '',
+              content: restoredMsg.content,
             } as Message;
-          }
-          return {
-            role: restoredMsg.role,
-            content: restoredMsg.content, // Can be string or ContentPart[] - SillyTavern handles both
-          } as Message;
-        });
-        messages.push(...convertedMessages);
+          });
+          messages.push(...convertedMessages);
+          
+          messages.push({ role: 'user', content: '</ChatHistory>' } as Message);
+        }
         continue;
       }
 
-      // Template-based blocks (stDescription, charDefinitions, etc.)
+      if (mainContext.promptName === 'taskDescription' && mode === 'chat') {
+        // Skip task description if we're just chatting
+        continue;
+      }
+
+      // Template-based blocks
       const promptSettings = this.getFilteredPromptSettings(settings, session);
       const prompt = promptSettings[mainContext.promptName];
       if (!prompt) {
@@ -139,7 +158,6 @@ export class MessageBuilder {
         content: Handlebars.compile(prompt.content || '', { noEscape: true })(contextTemplateData),
       };
 
-      // Apply ST macro substitution with placeholder protection
       message.content = (message.content as string).replaceAll('{{user}}', '[[[crec_veryUniqueUserPlaceHolder]]]');
       message.content = (message.content as string).replaceAll('{{char}}', '[[[crec_veryUniqueCharPlaceHolder]]]');
       message.content = globalContext.substituteParams(message.content as string);
@@ -199,7 +217,7 @@ export class MessageBuilder {
   private buildTemplateData(options: {
     targetField: string;
     userPrompt: string;
-    session: Session;
+    session: WorkingSession;
     allCharacters: Character[];
     entriesGroupByWorldName: Record<string, WIEntry[]>;
     formatDescription: { content: string };
@@ -231,7 +249,7 @@ export class MessageBuilder {
 
     // Add selected characters
     const charactersData: Character[] = [];
-    session.selectedCharacterIndexes.forEach((charIndex) => {
+    session.selectedCharacterIds.forEach((charIndex: string) => {
       const charIndexNumber = parseInt(charIndex);
       const char = allCharacters[charIndexNumber];
       if (char) {
@@ -241,13 +259,13 @@ export class MessageBuilder {
     templateData['characters'] = charactersData;
 
     // Add creator chat history
-    if (!session.creatorChatHistory) {
-      session.creatorChatHistory = { messages: [] } as any;
+    if (!session.creatorChat) {
+      session.creatorChat = { messages: [] };
     }
-    if (!Array.isArray(session.creatorChatHistory.messages)) {
-      (session.creatorChatHistory as any).messages = [];
+    if (!Array.isArray(session.creatorChat.messages)) {
+      session.creatorChat.messages = [];
     }
-    templateData['creatorChatHistory'] = session.creatorChatHistory.messages;
+    templateData['creatorChatHistory'] = session.creatorChat.messages;
 
     // Add selected lorebooks
     const lorebooksData: Record<string, WIEntry[]> = {};
@@ -271,7 +289,7 @@ export class MessageBuilder {
   /**
    * Build fields context with proper greeting handling
    */
-  private buildFieldsContext(session: Session, targetField: string): Record<string, any> {
+  private buildFieldsContext(session: WorkingSession, targetField: string): Record<string, any> {
     const settings = settingsManager.getSettings();
     const coreFields: Record<string, string> = {};
     const alternateGreetingsFields: Record<string, string> = {};
@@ -329,30 +347,24 @@ export class MessageBuilder {
   /**
    * Get filtered prompt settings based on context toggles
    */
-  private getFilteredPromptSettings(settings: ExtensionSettings, session: Session): typeof settings.prompts {
-    const promptSettings = structuredClone(settings.prompts);
+  private getFilteredPromptSettings(settings: ExtensionSettings, session: WorkingSession): Record<string, any> {
+    const promptSettings: Record<string, any> = structuredClone(settings.prompts);
 
     if (!settings.contextToSend.stDescription) {
-      // @ts-ignore
       delete promptSettings.stDescription;
     }
-    if (!settings.contextToSend.charCard || session.selectedCharacterIndexes.length === 0) {
-      // @ts-ignore
+    if (!settings.contextToSend.charCard || session.selectedCharacterIds.length === 0) {
       delete promptSettings.charDefinitions;
     }
     if (!settings.contextToSend.worldInfo || session.selectedWorldNames.length === 0) {
-      // @ts-ignore
       delete promptSettings.lorebookDefinitions;
     }
     if (!settings.contextToSend.existingFields) {
-      // @ts-ignore
       delete promptSettings.existingFieldDefinitions;
     }
     if (!settings.contextToSend.persona) {
-      // @ts-ignore
       delete promptSettings.personaDescription;
     }
-    // @ts-ignore - since this is only for saving as world info entry
     delete promptSettings.worldInfoCharDefinition;
 
     return promptSettings;
@@ -374,6 +386,33 @@ export class MessageBuilder {
       throw new Error(`Could not determine API for profile "${profile.name}".`);
     }
     return selectedApi;
+  }
+
+  /**
+   * Flatten RP chat into a single <RoleplayContext> block (Second Class)
+   */
+  private buildRoleplayContext(chatOnly: any[]): string {
+    const { characters } = globalContext;
+    const charName = (this_chid !== undefined && characters[this_chid as number]?.name) || 'Character';
+    const userName = name1 || 'User';
+
+    const formatted = chatOnly
+      .map((m) => {
+        const name = m.role === 'user' ? userName : charName;
+        let content = '';
+        if (typeof m.content === 'string') {
+          content = m.content;
+        } else if (Array.isArray(m.content)) {
+          content = m.content
+            .filter((part: any) => part.type === 'text')
+            .map((part: any) => part.text)
+            .join('');
+        }
+        return `${name}: ${content}`;
+      })
+      .join('\n');
+
+    return `<RoleplayContext>\n${formatted}\n</RoleplayContext>`;
   }
 }
 

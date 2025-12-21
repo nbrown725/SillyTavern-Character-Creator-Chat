@@ -1,7 +1,7 @@
 import { globalContext } from "./generate.js";
 import { SessionService } from './services/sessionService.js';
 import { ChatController } from './controllers/chatController.js';
-import { ChatMessage } from './types.js';
+import { CreatorMessage } from './types.js';
 
 // Remove duplicate ChatMessage interface - using the one from types.ts
 // Remove ChatSession - using unified session storage
@@ -30,6 +30,7 @@ export async function loadChatUI(): Promise<void> {
         chatContainer.show();
 
         bindChatEvents();
+        await refreshSavedChatsList();
         renderChatHistory();
     } catch (error) {
         console.error('Failed to load chat template:', error);
@@ -38,6 +39,101 @@ export async function loadChatUI(): Promise<void> {
 }
 
 // Removed separate chat session functions - using unified sessionService
+
+async function saveChat(): Promise<void> {
+    const session = sessionService.getSession();
+    const characterId = session.lastLoadedCharacterId;
+
+    if (!characterId) {
+        alert('Please load a character first to save chats.');
+        return;
+    }
+
+    // Get character name from the loaded character
+    const context = SillyTavern.getContext();
+    const character = context.characters.find((c: any) => c.avatar === characterId);
+    const characterName = character?.name || 'Unknown';
+
+    try {
+        const saved = await sessionService.saveCurrentChat(characterId, characterName);
+        await refreshSavedChatsList();
+        $('#saved_chats_select').val(saved.id);
+        alert('Chat saved successfully!');
+    } catch (error) {
+        console.error('Failed to save chat:', error);
+        alert('Failed to save chat.');
+    }
+}
+
+async function loadSelectedChat(): Promise<void> {
+    const chatId = $('#saved_chats_select').val() as string;
+    if (!chatId) {
+        alert('Please select a saved chat to load.');
+        return;
+    }
+
+    if (!confirm('Loading will replace your current working chat history. Continue?')) return;
+
+    try {
+        await sessionService.loadSavedChat(chatId);
+        renderChatHistory();
+    } catch (error) {
+        console.error('Failed to load chat:', error);
+        alert('Failed to load chat.');
+    }
+}
+
+async function deleteSelectedChat(): Promise<void> {
+    const chatId = $('#saved_chats_select').val() as string;
+    if (!chatId) {
+        alert('Please select a saved chat to delete.');
+        return;
+    }
+
+    if (!confirm('Are you sure you want to delete this saved chat?')) return;
+
+    try {
+        await sessionService.deleteSavedChat(chatId);
+        await refreshSavedChatsList();
+    } catch (error) {
+        console.error('Failed to delete saved chat:', error);
+        alert('Failed to delete saved chat.');
+    }
+}
+
+function onChatSelectChange(): void {
+    // Selection handled by load/delete buttons
+}
+
+async function refreshSavedChatsList(): Promise<void> {
+    const session = sessionService.getSession();
+    const characterId = session.lastLoadedCharacterId;
+
+    const select = $('#saved_chats_select');
+    select.empty().append('<option value="">-- Saved Chats --</option>');
+
+    if (!characterId) return;
+
+    try {
+        const chats = await sessionService.listSavedChats(characterId);
+        chats
+            .sort((a, b) => b.updatedAt - a.updatedAt)
+            .forEach(chat => {
+                select.append(`<option value="${chat.id}">${chat.characterName}</option>`);
+            });
+
+        // Select the linked chat if any
+        if (session.creatorChat.linkedSavedChatId) {
+            select.val(session.creatorChat.linkedSavedChatId);
+        }
+    } catch (error) {
+        console.error('Failed to list saved chats:', error);
+    }
+}
+
+export async function onCharacterLoaded(): Promise<void> {
+    await refreshSavedChatsList();
+}
 
 function setupChatEventHandlers(): void {
     $(document).on('click', '.tab-button[data-tab="charCreator_chatContainer"]', function () {
@@ -59,6 +155,10 @@ function bindChatEvents(): void {
 
     $('#clear_chat').on('click', clearChat);
     $('#export_chat').on('click', exportChat);
+    $('#save_chat').on('click', saveChat);
+    $('#load_chat').on('click', loadSelectedChat);
+    $('#delete_saved_chat').on('click', deleteSelectedChat);
+    $('#saved_chats_select').on('change', onChatSelectChange);
     
     // Bind edit/delete/regen message events using event delegation
     $('#chat_messages').on('click', '.edit-message-btn', function() {
@@ -143,10 +243,10 @@ async function sendMessage(): Promise<void> {
     input.prop('disabled', true);
 
     try {
-		// Capture current image before clearing UI
-		const imageUrlForSend = pendingInlineImageDataUrl ?? undefined;
+        // Capture current image before clearing UI
+        const imageUrlForSend = pendingInlineImageDataUrl ?? undefined;
 
-		        // Create and render user message immediately
+        // Create and render user message immediately
         const userMessage = await chatController.createAndStoreUserMessage({
             content: message,
             imageUrl: imageUrlForSend,
@@ -154,15 +254,15 @@ async function sendMessage(): Promise<void> {
         renderMessage(userMessage);
         scrollToBottom();
 
-		// Clear input and image preview immediately
-		input.val('');
-		resetImagePreview();
+        // Clear input and image preview immediately
+        input.val('');
+        resetImagePreview();
 
         // Kick off AI response
-		const aiMessage = await chatController.generateAndStoreAiResponse({
-			content: message,
-			imageUrl: imageUrlForSend,
-		});
+        const aiMessage = await chatController.generateAndStoreAiResponse({
+            content: message,
+            imageUrl: imageUrlForSend,
+        });
         renderMessage(aiMessage);
         scrollToBottom();
     } catch (error) {
@@ -187,7 +287,7 @@ function resetImagePreview(): void {
 
 // Removed addMessageToChat - messages are now handled by ChatController
 
-function renderMessage(message: ChatMessage): void {
+function renderMessage(message: CreatorMessage): void {
     const template = $('#chat_message_template')[0] as HTMLTemplateElement;
     const clonedContent = template.content.cloneNode(true) as DocumentFragment;
     const messageElement = $(clonedContent.querySelector('.chat-message')!);
@@ -204,8 +304,8 @@ function renderMessage(message: ChatMessage): void {
     
     const container = messageElement.find('.message-content');
     container.html(formatMessageContent(message.content));
-    if (message.inlineImageUrl) {
-        const imageHtml = chatController.createImagePreviewHtml(message.inlineImageUrl);
+    if (message.imageUrl) {
+        const imageHtml = chatController.createImagePreviewHtml(message.imageUrl);
         container.append($(imageHtml));
     }
 
@@ -300,18 +400,13 @@ async function saveEditMessage(messageId: string): Promise<void> {
     }
     
     try {
-        // Find message index by ID
-        const messages = chatController.getChatMessages();
-        const messageIndex = messages.findIndex(m => m.id === messageId);
-        if (messageIndex !== -1) {
-            await chatController.editMessage({ messageIndex, newContent });
-            
-            // Update UI
-            const contentElement = messageElement.find('.message-content');
-            contentElement.html(formatMessageContent(newContent));
-            contentElement.show();
-            editContainer.hide();
-        }
+        await chatController.editMessage({ messageId, newContent });
+        
+        // Update UI
+        const contentElement = messageElement.find('.message-content');
+        contentElement.html(formatMessageContent(newContent));
+        contentElement.show();
+        editContainer.hide();
     } catch (error) {
         console.error('Failed to edit message:', error);
         alert('Failed to edit message.');
@@ -331,17 +426,13 @@ async function deleteMessage(messageId: string): Promise<void> {
     if (!confirm('Are you sure you want to delete this message?')) return;
     
     try {
-        // IDs are aligned to session indices; parse directly for robustness
-        const messageIndex = parseInt(messageId, 10);
-        if (messageIndex !== -1) {
-            await chatController.deleteMessage(messageIndex);
-            
-            // Remove from UI with animation
-            const messageElement = $(`.chat-message[data-message-id="${messageId}"]`);
-            messageElement.fadeOut(200, function() {
-                $(this).remove();
-            });
-        }
+        await chatController.deleteMessage(messageId);
+        
+        // Remove from UI with animation
+        const messageElement = $(`.chat-message[data-message-id="${messageId}"]`);
+        messageElement.fadeOut(200, function() {
+            $(this).remove();
+        });
     } catch (error) {
         console.error('Failed to delete message:', error);
         alert('Failed to delete message.');
@@ -349,11 +440,11 @@ async function deleteMessage(messageId: string): Promise<void> {
 }
 
 async function regenerateMessage(messageId: string): Promise<void> {
-    const messageIndex = parseInt(messageId, 10);
     const messages = chatController.getChatMessages();
     
-    if (messageIndex < 0 || messageIndex >= messages.length) {
-        console.error('Invalid message index for regeneration');
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1) {
+        console.error('Invalid message ID for regeneration');
         return;
     }
     
@@ -371,7 +462,7 @@ async function regenerateMessage(messageId: string): Promise<void> {
     for (let i = messageIndex - 1; i >= 0; i--) {
         if (messages[i].role === 'user') {
             previousUserMessage = messages[i].content;
-            previousUserImageUrl = messages[i].inlineImageUrl;
+            previousUserImageUrl = messages[i].imageUrl;
             break;
         }
     }
@@ -384,30 +475,23 @@ async function regenerateMessage(messageId: string): Promise<void> {
     // Show loading state
     const messageElement = $(`.chat-message[data-message-id="${messageId}"]`);
     const regenButton = messageElement.find('.regen-message-btn');
-    const originalHtml = regenButton.html();
     regenButton.prop('disabled', true);
     regenButton.html('<i class="fa-solid fa-spinner fa-spin"></i>');
     
     try {
-        // Regenerate the message (this will delete both messages and re-send fresh)
-        await chatController.regenerateMessage(messageIndex, {
+        // Regenerate the message
+        await chatController.regenerateMessage(messageId, {
             content: previousUserMessage,
             imageUrl: previousUserImageUrl
         });
         
-        // Since regeneration deletes both messages and adds fresh ones,
-        // we need to completely re-render the chat history
+        // Complete re-render
         renderChatHistory();
         
     } catch (error) {
         console.error('Failed to regenerate message:', error);
         alert('Failed to regenerate message. Please check your connection settings.');
-        
-        // Re-render chat in case of partial changes
         renderChatHistory();
-    } finally {
-        // Since we re-render the entire chat, the button state will be reset automatically
-        // No need to manually restore button state
     }
 }
 
@@ -446,7 +530,7 @@ function formatMessageContent(content: string): string {
 
 // Removed updateCreatorChatHistory - no longer needed with unified session
 
-export function getChatMessagesForUI(): ChatMessage[] {
+export function getChatMessagesForUI(): CreatorMessage[] {
     return chatController.getChatMessages();
 }
 
