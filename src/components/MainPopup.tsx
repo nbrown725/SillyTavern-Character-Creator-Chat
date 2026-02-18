@@ -424,6 +424,11 @@ export const MainPopup: FC = () => {
     [allCharacters, session.fields, handleGreetingsChange],
   );
 
+  const handleLoadCurrentCharacter = useCallback(async () => {
+    if (this_chid === undefined) return st_echo('warning', 'No character selected in the main chat.');
+    await handleLoadCharacter(String(this_chid));
+  }, [handleLoadCharacter]);
+
   const getGreetingsArray = () => greetings.map((g) => g.value).filter((v) => v.trim() !== '');
 
   const handleSaveAsNew = async () => {
@@ -876,6 +881,9 @@ export const MainPopup: FC = () => {
             )}
             <STButton onClick={handleReset}>
               <i className="fa-solid fa-rotate-left" style={{ marginRight: '10px' }}></i>Reset Fields
+            </STButton>
+            <STButton onClick={handleLoadCurrentCharacter} disabled={this_chid === undefined} title="Load current character">
+              <i className="fa-solid fa-user"></i> Load Current
             </STButton>
             <div style={{ width: '200px' }} title="Load Character Data">
               <STFancyDropdown
