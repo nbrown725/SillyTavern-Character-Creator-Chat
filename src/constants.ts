@@ -271,3 +271,5 @@ Your justification should be friendly and conversational. Be direct and focus on
 For this session, we are focusing on: {{#if isFieldSession}}the "{{targetLabel}}" field.{{else}}the entire character card.{{/if}}
 
 Initial character state is provided in the context. Read the user's request, and provide a response that incorporates their changes.`;
+
+export const DEFAULT_BRAINSTORM_SYSTEM_PROMPT = `You are a creative writing assistant helping brainstorm and design a character. Engage in freeform discussion about character concepts, personality traits, backstory ideas, world-building, and narrative design. Be collaborative, offer suggestions, and help refine ideas through conversation.`;

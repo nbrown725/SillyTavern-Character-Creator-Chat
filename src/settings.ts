@@ -15,12 +15,13 @@ import {
   DEFAULT_REVISE_JSON_PROMPT,
   DEFAULT_REVISE_XML_PROMPT,
   DEFAULT_REVISE_TASK_DESCRIPTION,
+  DEFAULT_BRAINSTORM_SYSTEM_PROMPT,
 } from './constants.js';
 import { globalContext } from './generate.js';
 
 export const extensionName = 'SillyTavern-Character-Creator';
 export const VERSION = '0.3.0';
-export const FORMAT_VERSION = 'F_1.9';
+export const FORMAT_VERSION = 'F_1.10';
 
 export const KEYS = {
   EXTENSION: 'charCreator',
@@ -96,6 +97,7 @@ export interface ExtensionSettings {
     reviseJsonPrompt: PromptSetting;
     reviseXmlPrompt: PromptSetting;
     reviseTaskDescription: PromptSetting;
+    brainstormSystemPrompt: PromptSetting;
     [key: string]: PromptSetting;
   };
 
@@ -126,7 +128,8 @@ export type SystemPromptKey =
   | 'personaDescription'
   | 'reviseJsonPrompt'
   | 'reviseXmlPrompt'
-  | 'reviseTaskDescription';
+  | 'reviseTaskDescription'
+  | 'brainstormSystemPrompt';
 
 export const SYSTEM_PROMPT_KEYS: Array<SystemPromptKey> = [
   'stDescription',
@@ -143,6 +146,7 @@ export const SYSTEM_PROMPT_KEYS: Array<SystemPromptKey> = [
   'reviseJsonPrompt',
   'reviseXmlPrompt',
   'reviseTaskDescription',
+  'brainstormSystemPrompt',
 ];
 
 // Map keys to their default values
@@ -161,6 +165,7 @@ export const DEFAULT_PROMPT_CONTENTS: Record<SystemPromptKey, string> = {
   reviseJsonPrompt: DEFAULT_REVISE_JSON_PROMPT,
   reviseXmlPrompt: DEFAULT_REVISE_XML_PROMPT,
   reviseTaskDescription: DEFAULT_REVISE_TASK_DESCRIPTION,
+  brainstormSystemPrompt: DEFAULT_BRAINSTORM_SYSTEM_PROMPT,
 };
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -261,6 +266,11 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
       content: DEFAULT_PROMPT_CONTENTS.reviseTaskDescription,
       isDefault: true,
       label: 'Revise Session Task Description',
+    },
+    brainstormSystemPrompt: {
+      content: DEFAULT_BRAINSTORM_SYSTEM_PROMPT,
+      isDefault: true,
+      label: 'Brainstorm System Prompt',
     },
   },
 
@@ -672,6 +682,26 @@ export async function initializeSettings(): Promise<void> {
               if (previous.prompts.stDescription.isDefault) {
                 response.prompts.stDescription.content = DEFAULT_CHAR_CARD_DESCRIPTION;
               }
+              return response;
+            },
+          },
+          {
+            from: 'F_1.9',
+            to: 'F_1.10',
+            action(previous: ExtensionSettings): ExtensionSettings {
+              const response = {
+                ...previous,
+              } as ExtensionSettings;
+
+              // Add brainstormSystemPrompt if it doesn't exist
+              if (!response.prompts.brainstormSystemPrompt) {
+                response.prompts.brainstormSystemPrompt = {
+                  content: DEFAULT_BRAINSTORM_SYSTEM_PROMPT,
+                  isDefault: true,
+                  label: 'Brainstorm System Prompt',
+                };
+              }
+
               return response;
             },
           },
