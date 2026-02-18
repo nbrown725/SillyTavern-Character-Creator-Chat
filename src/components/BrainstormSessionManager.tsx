@@ -78,6 +78,7 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
       );
       newSession.messages = initialMsgs;
 
+      saveAllSessions([...allSessions, newSession]);
       setActiveSession(newSession);
     } catch (error: any) {
       console.error('Failed to create brainstorm session:', error);

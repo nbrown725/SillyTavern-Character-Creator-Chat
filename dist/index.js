@@ -24108,7 +24108,7 @@ const Wy = SillyTavern.getContext(), e0 = "charCreator_brainstormSessions", kA =
           t,
           r
         );
-        x.messages = N, u(x);
+        x.messages = N, m([...i, x]), u(x);
       } catch (S) {
         console.error("Failed to create brainstorm session:", S), Ce("error", `Failed to create session: ${S.message}`);
       }
