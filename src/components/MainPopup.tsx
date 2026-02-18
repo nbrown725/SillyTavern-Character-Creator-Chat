@@ -24,6 +24,7 @@ import { AlternateGreetings, Greeting } from './AlternateGreetings.js';
 import { CompareFieldPopup } from './CompareFieldPopup.js';
 import { CharacterState, ReviseSessionType } from '../revise-types.js';
 import { ReviseSessionManager } from './ReviseSessionManager.js';
+import { BrainstormSessionManager } from './BrainstormSessionManager.js';
 
 if (!Handlebars.helpers['add']) {
   Handlebars.registerHelper('add', function (a: any, b: any) {
@@ -92,7 +93,7 @@ export const MainPopup: FC = () => {
   const [session, setSession] = useState<Session>(createDefaultSession());
   const [isGenerating, setIsGenerating] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'core' | 'draft'>('core');
+  const [activeTab, setActiveTab] = useState<'core' | 'draft' | 'brainstorm'>('core');
 
   const [allCharacters, setAllCharacters] = useState<Character[]>([]);
   const [allWorldNames, setAllWorldNames] = useState<string[]>([]);
@@ -909,6 +910,12 @@ export const MainPopup: FC = () => {
             >
               Draft Fields
             </STButton>
+            <STButton
+              onClick={() => setActiveTab('brainstorm')}
+              className={`menu_button tab-button ${activeTab === 'brainstorm' ? 'active' : ''}`}
+            >
+              Brainstorm
+            </STButton>
             <div className="right-aligned">
               {activeTab === 'draft' && (
                 <>
@@ -980,6 +987,19 @@ export const MainPopup: FC = () => {
                     onDelete={handleDeleteDraftField}
                   />
                 ))}
+              </div>
+            )}
+            {activeTab === 'brainstorm' && (
+              <div className="card tab-content active">
+                <BrainstormSessionManager
+                  contextToSend={settings.contextToSend}
+                  sessionForContext={{
+                    fields: session.fields,
+                    draftFields: session.draftFields,
+                    selectedCharacterIndexes: session.selectedCharacterIndexes,
+                    selectedWorldNames: session.selectedWorldNames,
+                  }}
+                />
               </div>
             )}
           </div>
