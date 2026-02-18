@@ -323,8 +323,9 @@
     flex-wrap: wrap;
 }
 
-/* Revise Session Styles */
-.revise-session-manager {
+/* Revise & Brainstorm Session Styles */
+.revise-session-manager,
+.brainstorm-session-manager {
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -378,7 +379,8 @@
     }
 }
 
-.revise-session-chat {
+.revise-session-chat,
+.brainstorm-chat {
     display: flex;
     flex-direction: column;
     height: 100%;
