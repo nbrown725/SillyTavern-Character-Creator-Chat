@@ -24453,6 +24453,10 @@ const e0 = SillyTavern.getContext(), FA = ({ session: t, onBack: r, onSessionUpd
     }
   ) : /* @__PURE__ */ E.jsxs("div", { className: "brainstorm-session-manager", children: [
     /* @__PURE__ */ E.jsx("div", { className: "popup_header", children: /* @__PURE__ */ E.jsx("h3", { children: "Brainstorm Sessions" }) }),
+    /* @__PURE__ */ E.jsx("div", { className: "session-actions", children: /* @__PURE__ */ E.jsxs(de, { onClick: _, className: "menu_button", children: [
+      /* @__PURE__ */ E.jsx("i", { className: "fa-solid fa-plus" }),
+      " New Session"
+    ] }) }),
     /* @__PURE__ */ E.jsx("div", { className: "session-list", children: f ? /* @__PURE__ */ E.jsx("p", { className: "subtle", style: { textAlign: "center" }, children: "Loading sessions..." }) : h.length === 0 && m.length === 0 ? /* @__PURE__ */ E.jsx("p", { className: "subtle", style: { textAlign: "center" }, children: "No sessions found. Create a new one to get started." }) : /* @__PURE__ */ E.jsxs(E.Fragment, { children: [
       m.length > 0 && /* @__PURE__ */ E.jsxs("div", { className: "session-section", children: [
         /* @__PURE__ */ E.jsxs("h4", { className: "session-section-header", children: [
@@ -24483,10 +24487,6 @@ const e0 = SillyTavern.getContext(), FA = ({ session: t, onBack: r, onSessionUpd
           /* @__PURE__ */ E.jsx(de, { className: "danger_button", onClick: () => v(x.id), children: /* @__PURE__ */ E.jsx("i", { className: "fa-solid fa-trash-can" }) })
         ] }, x.id))
       ] })
-    ] }) }),
-    /* @__PURE__ */ E.jsx("div", { className: "session-actions", children: /* @__PURE__ */ E.jsxs(de, { onClick: _, className: "menu_button", children: [
-      /* @__PURE__ */ E.jsx("i", { className: "fa-solid fa-plus" }),
-      " New Session"
     ] }) })
   ] });
 };

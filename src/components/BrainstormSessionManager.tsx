@@ -172,6 +172,11 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({ co
       <div className="popup_header">
         <h3>Brainstorm Sessions</h3>
       </div>
+      <div className="session-actions">
+        <STButton onClick={handleCreateNewSession} className="menu_button">
+          <i className="fa-solid fa-plus"></i> New Session
+        </STButton>
+      </div>
       <div className="session-list">
         {isLoading ? (
           <p className="subtle" style={{ textAlign: 'center' }}>
@@ -226,11 +231,6 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({ co
             )}
           </>
         )}
-      </div>
-      <div className="session-actions">
-        <STButton onClick={handleCreateNewSession} className="menu_button">
-          <i className="fa-solid fa-plus"></i> New Session
-        </STButton>
       </div>
     </div>
   );
