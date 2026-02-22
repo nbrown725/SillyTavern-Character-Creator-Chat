@@ -86,4 +86,75 @@ describe('buildApiMessages', () => {
     // Falls back to plain string format when no images resolve
     expect(result[0]).toEqual({ role: 'user', content: 'Describe this' });
   });
+
+  test('converts video attachments to video_url format', () => {
+    const messages = [
+      {
+        id: '1',
+        role: 'user',
+        content: 'Describe this video',
+        images: [{ url: '/user/images/brainstorm/test.mp4', name: 'test.mp4', mediaType: 'video' as const }],
+      },
+    ];
+    const dataUrls = new Map<string, string>();
+    dataUrls.set('/user/images/brainstorm/test.mp4', 'data:video/mp4;base64,xyz789');
+
+    const result = buildApiMessages(messages as any, dataUrls);
+    expect(result).toHaveLength(1);
+    const content = result[0].content as unknown as any[];
+    expect(content[0]).toEqual({ type: 'text', text: 'Describe this video' });
+    expect(content[1]).toEqual({
+      type: 'video_url',
+      video_url: { url: 'data:video/mp4;base64,xyz789', detail: 'auto' },
+    });
+  });
+
+  test('handles mixed image and video attachments', () => {
+    const messages = [
+      {
+        id: '1',
+        role: 'user',
+        content: 'Compare these',
+        images: [
+          { url: '/user/images/brainstorm/photo.png', name: 'photo.png' },
+          { url: '/user/images/brainstorm/clip.mp4', name: 'clip.mp4', mediaType: 'video' as const },
+        ],
+      },
+    ];
+    const dataUrls = new Map<string, string>();
+    dataUrls.set('/user/images/brainstorm/photo.png', 'data:image/png;base64,abc123');
+    dataUrls.set('/user/images/brainstorm/clip.mp4', 'data:video/mp4;base64,xyz789');
+
+    const result = buildApiMessages(messages as any, dataUrls);
+    const content = result[0].content as unknown as any[];
+    expect(content).toHaveLength(3);
+    expect(content[1]).toEqual({
+      type: 'image_url',
+      image_url: { url: 'data:image/png;base64,abc123', detail: 'auto' },
+    });
+    expect(content[2]).toEqual({
+      type: 'video_url',
+      video_url: { url: 'data:video/mp4;base64,xyz789', detail: 'auto' },
+    });
+  });
+
+  test('attachments without mediaType default to image_url', () => {
+    const messages = [
+      {
+        id: '1',
+        role: 'user',
+        content: 'Look at this',
+        images: [{ url: '/user/images/brainstorm/old.png', name: 'old.png' }],
+      },
+    ];
+    const dataUrls = new Map<string, string>();
+    dataUrls.set('/user/images/brainstorm/old.png', 'data:image/png;base64,legacy');
+
+    const result = buildApiMessages(messages as any, dataUrls);
+    const content = result[0].content as unknown as any[];
+    expect(content[1]).toEqual({
+      type: 'image_url',
+      image_url: { url: 'data:image/png;base64,legacy', detail: 'auto' },
+    });
+  });
 });
