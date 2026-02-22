@@ -1,7 +1,8 @@
 import { FC, useState, useEffect, useRef, useCallback } from 'react';
 import { STButton, STTextarea } from 'sillytavern-utils-lib/components/react';
-import { BrainstormMessage, BrainstormSession } from '../brainstorm-types.js';
-import { makePlainRequest } from '../request.js';
+import { BrainstormMessage, BrainstormSession, ImageAttachment } from '../brainstorm-types.js';
+import { makePlainRequest, buildApiMessages } from '../request.js';
+import { uploadImage, fileToDataUrl, imageUrlToDataUrl } from '../image-utils.js';
 import { settingsManager } from '../settings.js';
 import { st_echo } from 'sillytavern-utils-lib/config';
 import { MarkdownContent } from './MarkdownContent.js';
@@ -22,6 +23,47 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
   const [editingContent, setEditingContent] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [pendingImages, setPendingImages] = useState<File[]>([]);
+  const [pendingImagePreviews, setPendingImagePreviews] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageDataUrlCache = useRef<Map<string, string>>(new Map());
+
+  const addPendingImages = useCallback(async (files: File[]) => {
+    const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+
+    setPendingImages((prev) => [...prev, ...imageFiles]);
+
+    const previews = await Promise.all(imageFiles.map((f) => fileToDataUrl(f)));
+    setPendingImagePreviews((prev) => [...prev, ...previews]);
+  }, []);
+
+  const removePendingImage = useCallback((index: number) => {
+    setPendingImages((prev) => prev.filter((_, i) => i !== index));
+    setPendingImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const files = Array.from(e.clipboardData.files);
+      if (files.some((f) => f.type.startsWith('image/'))) {
+        e.preventDefault();
+        addPendingImages(files);
+      }
+    },
+    [addPendingImages],
+  );
+
+  const handleFileInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files || []);
+      addPendingImages(files);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    },
+    [addPendingImages],
+  );
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -40,13 +82,32 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
       }
       abortControllerRef.current = new AbortController();
 
+      // Ensure all images in messages have cached data URLs
+      for (const msg of messagesToSend) {
+        if (msg.images) {
+          for (const img of msg.images) {
+            if (!imageDataUrlCache.current.has(img.url)) {
+              try {
+                const dataUrl = await imageUrlToDataUrl(img.url);
+                imageDataUrlCache.current.set(img.url, dataUrl);
+              } catch (error) {
+                console.warn(`Failed to load image ${img.url}, skipping`, error);
+              }
+            }
+          }
+        }
+      }
+
       optimisticUpdate();
       setIsLoading(true);
 
       try {
+        // Build API messages with multimodal content for images
+        const apiMessages = buildApiMessages(messagesToSend, imageDataUrlCache.current);
+
         const responseContent = await makePlainRequest(
           settings.profileId,
-          messagesToSend,
+          apiMessages,
           settings.maxResponseToken,
           abortControllerRef.current.signal,
         );
@@ -83,9 +144,9 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
     const lastChatMsg = chatMsgsLocal[chatMsgsLocal.length - 1];
     const canResend = lastChatMsg?.role === 'user';
 
-    if (!userInput.trim() && !canResend) return;
+    if (!userInput.trim() && pendingImages.length === 0 && !canResend) return;
 
-    if (!userInput.trim() && canResend) {
+    if (!userInput.trim() && pendingImages.length === 0 && canResend) {
       const previousMessages = messages;
       await sendRequest(
         messages,
@@ -95,17 +156,41 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
       return;
     }
 
-    const userMessage: BrainstormMessage = { id: `bm-${Date.now()}`, role: 'user', content: userInput.trim() };
+    // Upload pending images
+    let uploadedImages: ImageAttachment[] = [];
+    if (pendingImages.length > 0) {
+      try {
+        uploadedImages = await Promise.all(pendingImages.map((f) => uploadImage(f)));
+        // Cache the data URLs for API requests
+        for (let i = 0; i < uploadedImages.length; i++) {
+          imageDataUrlCache.current.set(uploadedImages[i].url, pendingImagePreviews[i]);
+        }
+      } catch (error: any) {
+        console.error('Image upload failed:', error);
+        st_echo('error', `Image upload failed: ${error.message}`);
+        return;
+      }
+    }
+
+    const userMessage: BrainstormMessage = {
+      id: `bm-${Date.now()}`,
+      role: 'user',
+      content: userInput.trim(),
+      ...(uploadedImages.length > 0 ? { images: uploadedImages } : {}),
+    };
+
     const previousMessages = messages;
     sendRequest(
       [...messages, userMessage],
       () => {
         setMessages([...messages, userMessage]);
         setUserInput('');
+        setPendingImages([]);
+        setPendingImagePreviews([]);
       },
       () => setMessages(previousMessages),
     );
-  }, [userInput, isLoading, messages, sendRequest]);
+  }, [userInput, isLoading, messages, sendRequest, pendingImages, pendingImagePreviews]);
 
   const handleRegenerate = useCallback(async () => {
     if (isLoading || messages.length === 0) return;
@@ -316,7 +401,22 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
                 {msg.role === 'assistant' ? (
                   <MarkdownContent content={msg.content} />
                 ) : (
-                  <div className="message-content">{msg.content}</div>
+                  <>
+                    <div className="message-content">{msg.content}</div>
+                    {msg.images && msg.images.length > 0 && (
+                      <div className="message-images">
+                        {msg.images.map((img, idx) => (
+                          <img
+                            key={idx}
+                            src={img.url}
+                            alt={img.name}
+                            title={img.name}
+                            onClick={() => window.open(img.url, '_blank')}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -334,7 +434,31 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
         )}
         <div ref={chatEndRef}></div>
       </div>
+      {pendingImagePreviews.length > 0 && (
+        <div className="pending-images-preview">
+          {pendingImagePreviews.map((preview, index) => (
+            <div key={index} className="pending-image-item">
+              <img src={preview} alt={pendingImages[index]?.name || 'pending'} />
+              <STButton
+                className="remove-image-button danger_button"
+                onClick={() => removePendingImage(index)}
+                title="Remove image"
+              >
+                <i className="fa-solid fa-times"></i>
+              </STButton>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="chat-input-area">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          style={{ display: 'none' }}
+          onChange={handleFileInputChange}
+        />
         <STTextarea
           value={userInput}
           onChange={(e) => setUserInput(e.target.value)}
@@ -347,8 +471,17 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
               handleSendMessage();
             }
           }}
+          onPaste={handlePaste}
         />
-        <STButton onClick={handleSendMessage} disabled={isLoading || !!editingMessageId || (!userInput.trim() && !canResend)}>
+        <STButton
+          className="image-attach-button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isLoading || !!editingMessageId}
+          title="Attach image"
+        >
+          <i className="fa-solid fa-paperclip"></i>
+        </STButton>
+        <STButton onClick={handleSendMessage} disabled={isLoading || !!editingMessageId || (!userInput.trim() && pendingImages.length === 0 && !canResend)}>
           <i className="fa-solid fa-paper-plane"></i>
         </STButton>
       </div>
