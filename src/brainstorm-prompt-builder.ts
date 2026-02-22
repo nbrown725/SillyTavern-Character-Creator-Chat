@@ -35,11 +35,13 @@ export async function buildInitialBrainstormMessages(
           .filter(([k]) => !k.startsWith('alternate_greetings_'))
           .map(([, v]) => [v.label, v.value]),
       ),
-      alternate_greetings: Object.fromEntries(
-        Object.entries(fields)
-          .filter(([k]) => k.startsWith('alternate_greetings_'))
-          .map(([, v]) => [v.label, v.value]),
-      ),
+      alternate_greetings: contextToSend.dontSendOtherGreetings
+        ? {}
+        : Object.fromEntries(
+            Object.entries(fields)
+              .filter(([k]) => k.startsWith('alternate_greetings_'))
+              .map(([, v]) => [v.label, v.value]),
+          ),
       draft: Object.fromEntries(Object.entries(draftFields).map(([, v]) => [v.label, v.value])),
     },
   };
