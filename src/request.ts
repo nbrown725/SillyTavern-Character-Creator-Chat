@@ -2,10 +2,11 @@ import { Generator, Message } from 'sillytavern-utils-lib';
 import { ExtractedData, StreamResponse } from 'sillytavern-utils-lib/types';
 import { z } from 'zod';
 import { st_echo } from 'sillytavern-utils-lib/config';
-import { PromptEngineeringMode, settingsManager } from './settings.js';
+import { PromptEngineeringMode, settingsManager, getThinkingLevelOverride } from './settings.js';
 import * as Handlebars from 'handlebars';
 import { schemaToExample } from './schema-to-example.js';
 import { parseResponse } from './parsers.js';
+import { BrainstormMessage } from './brainstorm-types.js';
 
 const generator = new Generator();
 
@@ -76,7 +77,7 @@ export async function makePlainRequest(
   maxTokens: number,
   signal?: AbortSignal,
 ): Promise<string> {
-  const response = await makeRequest(profileId, prompt, maxTokens, {}, undefined, signal);
+  const response = await makeRequest(profileId, prompt, maxTokens, getThinkingLevelOverride(), undefined, signal);
 
   if (!response?.content) {
     throw new Error('Plain request failed to return content.');
@@ -107,6 +108,7 @@ export async function makeStructuredRequest<T extends z.ZodType<any, any, any>>(
       maxResponseToken,
       {
         json_schema: { name: schemaName, strict: true, value: jsonSchema },
+        ...getThinkingLevelOverride(),
       },
       undefined,
       signal,
@@ -139,7 +141,7 @@ export async function makeStructuredRequest<T extends z.ZodType<any, any, any>>(
       profileId,
       [...baseMessages, instructionMessage],
       maxResponseToken,
-      {},
+      getThinkingLevelOverride(),
       undefined,
       signal,
     );
@@ -161,4 +163,34 @@ export async function makeStructuredRequest<T extends z.ZodType<any, any, any>>(
   }
 
   return validationResult.data;
+}
+
+/**
+ * Transforms BrainstormMessages into API-ready Messages.
+ * Messages with images are converted to OpenAI multimodal content arrays.
+ * The imageDataUrls map provides base64 data URLs keyed by server path.
+ */
+export function buildApiMessages(
+  messages: BrainstormMessage[],
+  imageDataUrls?: Map<string, string>,
+): Message[] {
+  return messages.map((msg) => {
+    if (!msg.images?.length) {
+      return { role: msg.role, content: msg.content };
+    }
+
+    const contentParts: any[] = [{ type: 'text', text: msg.content }];
+
+    for (const img of msg.images) {
+      const dataUrl = imageDataUrls?.get(img.url);
+      if (dataUrl) {
+        contentParts.push({
+          type: 'image_url',
+          image_url: { url: dataUrl, detail: 'auto' },
+        });
+      }
+    }
+
+    return { role: msg.role, content: contentParts } as any;
+  });
 }
