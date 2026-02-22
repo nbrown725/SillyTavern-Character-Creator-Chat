@@ -11,6 +11,11 @@ import { MarkdownContent } from './MarkdownContent.js';
 
 const globalContext = SillyTavern.getContext();
 
+function isVideoInliningSupported(): boolean {
+  const el = document.getElementById('openai_video_inlining_supported');
+  return el?.dataset.ccToggle === 'true';
+}
+
 interface BrainstormChatProps {
   session: BrainstormSession;
   onBack: () => void;
@@ -165,7 +170,8 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
 
       try {
         // Build API messages with multimodal content for images
-        const apiMessages = buildApiMessages(messagesToSend, imageDataUrlCache.current);
+        const skipVideo = !isVideoInliningSupported();
+        const apiMessages = buildApiMessages(messagesToSend, imageDataUrlCache.current, skipVideo);
 
         const responseContent = await makePlainRequest(
           settings.profileId,

@@ -170,7 +170,7 @@ export async function makeStructuredRequest<T extends z.ZodType<any, any, any>>(
  * Messages with images/videos are converted to OpenAI multimodal content arrays.
  * The imageDataUrls map provides base64 data URLs keyed by server path.
  */
-export function buildApiMessages(messages: BrainstormMessage[], imageDataUrls?: Map<string, string>): Message[] {
+export function buildApiMessages(messages: BrainstormMessage[], imageDataUrls?: Map<string, string>, skipVideo?: boolean): Message[] {
   return messages.map((msg) => {
     if (!msg.images?.length) {
       return { role: msg.role, content: msg.content };
@@ -179,6 +179,9 @@ export function buildApiMessages(messages: BrainstormMessage[], imageDataUrls?: 
     const contentParts: any[] = [{ type: 'text', text: msg.content }];
 
     for (const img of msg.images) {
+      if (skipVideo && img.mediaType === 'video') {
+        continue;
+      }
       const dataUrl = imageDataUrls?.get(img.url);
       if (dataUrl) {
         if (img.mediaType === 'video') {

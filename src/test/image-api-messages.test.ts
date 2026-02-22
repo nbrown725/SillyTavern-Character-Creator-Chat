@@ -138,6 +138,31 @@ describe('buildApiMessages', () => {
     });
   });
 
+  test('skips video attachments when skipVideo is true', () => {
+    const messages = [
+      {
+        id: '1',
+        role: 'user',
+        content: 'Check these',
+        images: [
+          { url: '/user/images/brainstorm/photo.png', name: 'photo.png' },
+          { url: '/user/images/brainstorm/clip.mp4', name: 'clip.mp4', mediaType: 'video' as const },
+        ],
+      },
+    ];
+    const dataUrls = new Map<string, string>();
+    dataUrls.set('/user/images/brainstorm/photo.png', 'data:image/png;base64,abc');
+    dataUrls.set('/user/images/brainstorm/clip.mp4', 'data:video/mp4;base64,xyz');
+
+    const result = buildApiMessages(messages as any, dataUrls, true);
+    const content = result[0].content as unknown as any[];
+    expect(content).toHaveLength(2); // text + image only, no video
+    expect(content[1]).toEqual({
+      type: 'image_url',
+      image_url: { url: 'data:image/png;base64,abc', detail: 'auto' },
+    });
+  });
+
   test('attachments without mediaType default to image_url', () => {
     const messages = [
       {
