@@ -11,11 +11,6 @@ import { MarkdownContent } from './MarkdownContent.js';
 
 const globalContext = SillyTavern.getContext();
 
-function isVideoInliningSupported(): boolean {
-  const el = document.getElementById('openai_video_inlining_supported');
-  return el?.dataset.ccToggle === 'true';
-}
-
 interface BrainstormChatProps {
   session: BrainstormSession;
   onBack: () => void;
@@ -37,6 +32,7 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
   const [pendingImagePreviews, setPendingImagePreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageDataUrlCache = useRef<Map<string, string>>(new Map());
+  const skipVideoRef = useRef(false);
 
   const isVideoFile = (file: File) => file.type.startsWith('video/');
   const isVideoAttachment = (img: ImageAttachment) => img.mediaType === 'video';
@@ -169,16 +165,32 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
       setIsLoading(true);
 
       try {
-        // Build API messages with multimodal content for images
-        const skipVideo = !isVideoInliningSupported();
-        const apiMessages = buildApiMessages(messagesToSend, imageDataUrlCache.current, skipVideo);
+        const hasVideo = messagesToSend.some((m) => m.images?.some((img) => img.mediaType === 'video'));
+        const apiMessages = buildApiMessages(messagesToSend, imageDataUrlCache.current, hasVideo && skipVideoRef.current);
 
-        const responseContent = await makePlainRequest(
-          settings.profileId,
-          apiMessages,
-          settings.maxResponseToken,
-          abortControllerRef.current.signal,
-        );
+        let responseContent: string;
+        try {
+          responseContent = await makePlainRequest(
+            settings.profileId,
+            apiMessages,
+            settings.maxResponseToken,
+            abortControllerRef.current.signal,
+          );
+        } catch (firstError: any) {
+          if (firstError.name === 'AbortError' || !hasVideo || skipVideoRef.current) {
+            throw firstError;
+          }
+          // Retry without video — the model likely doesn't support it
+          skipVideoRef.current = true;
+          const fallbackMessages = buildApiMessages(messagesToSend, imageDataUrlCache.current, true);
+          responseContent = await makePlainRequest(
+            settings.profileId,
+            fallbackMessages,
+            settings.maxResponseToken,
+            abortControllerRef.current.signal,
+          );
+          st_echo('warning', 'Video attachments were skipped because the current model does not support them.');
+        }
 
         const assistantMessage: BrainstormMessage = {
           id: `bm-${Date.now()}-ai`,
