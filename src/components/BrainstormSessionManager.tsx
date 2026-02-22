@@ -28,10 +28,14 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
     const sessionsFromStorage: BrainstormSession[] = JSON.parse(
       localStorage.getItem(BRAINSTORM_SESSIONS_KEY) || '[]',
     );
+    const needsMigration = sessionsFromStorage.some((s) => s.saved === undefined);
     const migratedSessions = sessionsFromStorage.map((s) => ({
       ...s,
       saved: s.saved ?? true,
     }));
+    if (needsMigration) {
+      localStorage.setItem(BRAINSTORM_SESSIONS_KEY, JSON.stringify(migratedSessions));
+    }
     setAllSessions(migratedSessions);
     setIsLoading(false);
   }, []);
@@ -122,6 +126,9 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
     if (confirm) {
       const updatedSessions = allSessions.filter((s) => s.id !== sessionId);
       saveAllSessions(updatedSessions);
+      if (activeSession?.id === sessionId) {
+        setActiveSession(null);
+      }
     }
   };
 
