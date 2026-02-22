@@ -532,6 +532,11 @@
             background-color: var(--SmartThemeBotMesBlurTintColor);
             color: var(--SmartThemeBodyColor);
             border-bottom-left-radius: 4px;
+
+            .message-actions {
+                right: auto;
+                left: 4px;
+            }
         }
 
         &.initial {
