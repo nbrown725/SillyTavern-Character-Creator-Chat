@@ -71,11 +71,7 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
   }, [messages]);
 
   const sendRequest = useCallback(
-    async (
-      messagesToSend: BrainstormMessage[],
-      optimisticUpdate: () => void,
-      revertUpdate: () => void,
-    ) => {
+    async (messagesToSend: BrainstormMessage[], optimisticUpdate: () => void, revertUpdate: () => void) => {
       const settings = settingsManager.getSettings();
       if (!settings.profileId) {
         st_echo('warning', 'Please select a connection profile in the extension settings.');
@@ -233,7 +229,9 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
 
     if (editedMessage.role === 'assistant') {
       const updatedMessages = messages.map((m) =>
-        m.id === editingMessageId ? { ...m, content: editingContent, images: editingImages.length > 0 ? editingImages : undefined } : m,
+        m.id === editingMessageId
+          ? { ...m, content: editingContent, images: editingImages.length > 0 ? editingImages : undefined }
+          : m,
       );
       setMessages(updatedMessages);
       onSessionUpdate({ ...session, messages: updatedMessages });
@@ -249,7 +247,11 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
 
     const previousMessages = messages;
     const truncatedMessages = messages.slice(0, messageIndex);
-    const editedMsg = { ...messages[messageIndex], content: editingContent, images: editingImages.length > 0 ? editingImages : undefined };
+    const editedMsg = {
+      ...messages[messageIndex],
+      content: editingContent,
+      images: editingImages.length > 0 ? editingImages : undefined,
+    };
     const messagesForRequest = [...truncatedMessages, editedMsg];
 
     handleCancelEdit();
@@ -516,7 +518,10 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
         >
           <i className="fa-solid fa-paperclip"></i>
         </STButton>
-        <STButton onClick={handleSendMessage} disabled={isLoading || !!editingMessageId || (!userInput.trim() && pendingImages.length === 0 && !canResend)}>
+        <STButton
+          onClick={handleSendMessage}
+          disabled={isLoading || !!editingMessageId || (!userInput.trim() && pendingImages.length === 0 && !canResend)}
+        >
           <i className="fa-solid fa-paper-plane"></i>
         </STButton>
       </div>

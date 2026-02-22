@@ -65,9 +65,7 @@ describe('buildApiMessages', () => {
   });
 
   test('strips extra fields like id and isInitial', () => {
-    const messages = [
-      { id: '1', role: 'user', content: 'Hi', isInitial: true },
-    ];
+    const messages = [{ id: '1', role: 'user', content: 'Hi', isInitial: true }];
     const result = buildApiMessages(messages as any);
     expect(result[0]).toEqual({ role: 'user', content: 'Hi' });
     expect((result[0] as any).id).toBeUndefined();

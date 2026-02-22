@@ -53,10 +53,6 @@ export const MarkdownContent: FC<MarkdownContentProps> = ({ content }) => {
   }, [sanitizedHtml]);
 
   return (
-    <div
-      ref={ref}
-      className="message-content markdown-rendered"
-      dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-    />
+    <div ref={ref} className="message-content markdown-rendered" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
   );
 };

@@ -16,18 +16,13 @@ interface BrainstormSessionManagerProps {
   sessionForContext: Pick<Session, 'fields' | 'draftFields' | 'selectedCharacterIndexes' | 'selectedWorldNames'>;
 }
 
-export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
-  contextToSend,
-  sessionForContext,
-}) => {
+export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({ contextToSend, sessionForContext }) => {
   const [allSessions, setAllSessions] = useState<BrainstormSession[]>([]);
   const [activeSession, setActiveSession] = useState<BrainstormSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const sessionsFromStorage: BrainstormSession[] = JSON.parse(
-      localStorage.getItem(BRAINSTORM_SESSIONS_KEY) || '[]',
-    );
+    const sessionsFromStorage: BrainstormSession[] = JSON.parse(localStorage.getItem(BRAINSTORM_SESSIONS_KEY) || '[]');
     const needsMigration = sessionsFromStorage.some((s) => s.saved === undefined);
     const migratedSessions = sessionsFromStorage.map((s) => ({
       ...s,
@@ -139,9 +134,7 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
     const newName = await globalContext.Popup.show.input('Save Session', session.name);
     if (!newName) return;
 
-    const updatedSessions = allSessions.map((s) =>
-      s.id === sessionId ? { ...s, saved: true, name: newName } : s,
-    );
+    const updatedSessions = allSessions.map((s) => (s.id === sessionId ? { ...s, saved: true, name: newName } : s));
     saveAllSessions(updatedSessions);
 
     // Update active session if it's the one being saved
@@ -188,24 +181,6 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
           </p>
         ) : (
           <>
-            {savedSessions.length > 0 && (
-              <div className="session-section">
-                <h4 className="session-section-header">
-                  <i className="fa-solid fa-bookmark"></i> Saved
-                </h4>
-                {savedSessions.map((session) => (
-                  <div key={session.id} className="session-item">
-                    <div className="session-info" onClick={() => handleSelectSession(session)}>
-                      <span className="session-name">{session.name}</span>
-                      <span className="session-date">{new Date(session.createdAt).toLocaleString()}</span>
-                    </div>
-                    <STButton className="danger_button" onClick={() => handleDeleteSession(session.id)}>
-                      <i className="fa-solid fa-trash-can"></i>
-                    </STButton>
-                  </div>
-                ))}
-              </div>
-            )}
             {workspaceSessions.length > 0 && (
               <div className="session-section">
                 <h4 className="session-section-header">
@@ -225,6 +200,24 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
                         <i className="fa-solid fa-trash-can"></i>
                       </STButton>
                     </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {savedSessions.length > 0 && (
+              <div className="session-section">
+                <h4 className="session-section-header">
+                  <i className="fa-solid fa-bookmark"></i> Saved
+                </h4>
+                {savedSessions.map((session) => (
+                  <div key={session.id} className="session-item">
+                    <div className="session-info" onClick={() => handleSelectSession(session)}>
+                      <span className="session-name">{session.name}</span>
+                      <span className="session-date">{new Date(session.createdAt).toLocaleString()}</span>
+                    </div>
+                    <STButton className="danger_button" onClick={() => handleDeleteSession(session.id)}>
+                      <i className="fa-solid fa-trash-can"></i>
+                    </STButton>
                   </div>
                 ))}
               </div>

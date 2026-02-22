@@ -4,7 +4,7 @@ import { ExtractedData } from 'sillytavern-utils-lib/types';
 import { Character } from 'sillytavern-utils-lib/types';
 import { WIEntry } from 'sillytavern-utils-lib/types/world-info';
 import { name1, st_echo } from 'sillytavern-utils-lib/config';
-import { ExtensionSettings, MessageRole, OutputFormat, settingsManager } from './settings.js';
+import { ExtensionSettings, MessageRole, OutputFormat, settingsManager, getThinkingLevelOverride } from './settings.js';
 
 import * as Handlebars from 'handlebars';
 
@@ -257,10 +257,13 @@ export async function runCharacterFieldGeneration({
     }
   }
 
+  const overridePayload = getThinkingLevelOverride();
   const response = (await globalContext.ConnectionManagerRequestService.sendRequest(
     profileId,
     messages,
     maxResponseToken,
+    undefined,
+    overridePayload,
   )) as ExtractedData;
 
   // For "continue" requests, the model only returns the new part.

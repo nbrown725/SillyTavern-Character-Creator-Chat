@@ -100,7 +100,14 @@ export async function buildInitialBrainstormMessages(
     if (block.promptName === 'chatHistory') continue;
 
     // Skip generation-specific prompts that don't apply to brainstorming
-    const irrelevantPrompts = ['taskDescription', 'outputFormatInstructions', 'reviseTaskDescription', 'reviseJsonPrompt', 'reviseXmlPrompt', 'brainstormSystemPrompt'];
+    const irrelevantPrompts = [
+      'taskDescription',
+      'outputFormatInstructions',
+      'reviseTaskDescription',
+      'reviseJsonPrompt',
+      'reviseXmlPrompt',
+      'brainstormSystemPrompt',
+    ];
     if (irrelevantPrompts.includes(block.promptName)) continue;
 
     const promptSetting = settings.prompts[block.promptName];

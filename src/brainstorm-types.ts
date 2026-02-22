@@ -18,5 +18,8 @@ export interface BrainstormSession {
   createdAt: string;
   saved: boolean;
   messages: BrainstormMessage[];
-  contextConfig: Pick<ContextToSend, 'stDescription' | 'charCard' | 'existingFields' | 'worldInfo' | 'persona' | 'messages'>;
+  contextConfig: Pick<
+    ContextToSend,
+    'stDescription' | 'charCard' | 'existingFields' | 'worldInfo' | 'persona' | 'messages'
+  >;
 }

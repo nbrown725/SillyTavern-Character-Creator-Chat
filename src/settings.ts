@@ -19,9 +19,20 @@ import {
 } from './constants.js';
 import { globalContext } from './generate.js';
 
-export const extensionName = 'SillyTavern-Character-Creator';
+export const extensionName = 'SillyTavern-Character-Creator-Chat';
 export const VERSION = '0.3.0';
-export const FORMAT_VERSION = 'F_1.10';
+export const FORMAT_VERSION = 'F_1.11';
+
+export type ThinkingLevel = 'default' | 'min' | 'low' | 'medium' | 'high' | 'max';
+
+export const THINKING_LEVELS: { value: ThinkingLevel; label: string }[] = [
+  { value: 'default', label: 'Default (Use Preset)' },
+  { value: 'min', label: 'Min' },
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+  { value: 'max', label: 'Max' },
+];
 
 export const KEYS = {
   EXTENSION: 'charCreator',
@@ -78,6 +89,7 @@ export interface ExtensionSettings {
   maxContextValue: number;
   maxResponseToken: number;
   outputFormat: OutputFormat;
+  thinkingLevel: ThinkingLevel;
   contextToSend: ContextToSend;
   defaultPromptEngineeringMode: PromptEngineeringMode;
 
@@ -176,6 +188,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   maxContextValue: 16384,
   maxResponseToken: 1024,
   outputFormat: 'xml',
+  thinkingLevel: 'default',
   contextToSend: {
     stDescription: true,
     messages: {
@@ -363,6 +376,18 @@ export function convertToVariableName(key: string) {
       return '';
     })
     .join('');
+}
+
+/**
+ * Returns the override payload for the current thinking level setting.
+ * When 'default', returns an empty object (no override).
+ */
+export function getThinkingLevelOverride(): Record<string, any> {
+  const settings = settingsManager.getSettings();
+  if (settings.thinkingLevel && settings.thinkingLevel !== 'default') {
+    return { reasoning_effort: settings.thinkingLevel };
+  }
+  return {};
 }
 
 export const settingsManager = new ExtensionSettingsManager<ExtensionSettings>(KEYS.EXTENSION, DEFAULT_SETTINGS);
@@ -703,6 +728,16 @@ export async function initializeSettings(): Promise<void> {
               }
 
               return response;
+            },
+          },
+          {
+            from: 'F_1.10',
+            to: 'F_1.11',
+            action(previous: ExtensionSettings): ExtensionSettings {
+              return {
+                ...previous,
+                thinkingLevel: previous.thinkingLevel ?? 'default',
+              };
             },
           },
         ],

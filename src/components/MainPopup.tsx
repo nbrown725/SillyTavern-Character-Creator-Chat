@@ -17,7 +17,7 @@ import { WIEntry } from 'sillytavern-utils-lib/types/world-info';
 import * as Handlebars from 'handlebars';
 
 import { runCharacterFieldGeneration, Session, CHARACTER_FIELDS, CHARACTER_LABELS } from '../generate.js';
-import { ExtensionSettings, settingsManager, convertToVariableName, VERSION } from '../settings.js';
+import { ExtensionSettings, settingsManager, convertToVariableName, VERSION, THINKING_LEVELS } from '../settings.js';
 import { useForceUpdate } from '../hooks/useForceUpdate.js';
 import { CharacterField } from './CharacterField.js';
 import { AlternateGreetings, Greeting } from './AlternateGreetings.js';
@@ -786,6 +786,20 @@ export const MainPopup: FC = () => {
               />
             </label>
             <label>
+              Thinking Level
+              <select
+                className="text_pole"
+                value={settings.thinkingLevel ?? 'default'}
+                onChange={(e) => updateSetting('thinkingLevel', e.target.value as any)}
+              >
+                {THINKING_LEVELS.map((level) => (
+                  <option key={level.value} value={level.value}>
+                    {level.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
               Output Format
               <select
                 className="text_pole"
@@ -883,7 +897,11 @@ export const MainPopup: FC = () => {
             <STButton onClick={handleReset}>
               <i className="fa-solid fa-rotate-left" style={{ marginRight: '10px' }}></i>Reset Fields
             </STButton>
-            <STButton onClick={handleLoadCurrentCharacter} disabled={this_chid === undefined} title="Load current character">
+            <STButton
+              onClick={handleLoadCurrentCharacter}
+              disabled={this_chid === undefined}
+              title="Load current character"
+            >
               <i className="fa-solid fa-user"></i> Load Current
             </STButton>
             <div style={{ width: '200px' }} title="Load Character Data">
