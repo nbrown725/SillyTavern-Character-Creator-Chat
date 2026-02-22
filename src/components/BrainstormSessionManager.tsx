@@ -36,8 +36,16 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
     setIsLoading(false);
   }, []);
 
-  const sortedSessions = useMemo(() => {
-    return [...allSessions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const savedSessions = useMemo(() => {
+    return allSessions
+      .filter((s) => s.saved)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [allSessions]);
+
+  const workspaceSessions = useMemo(() => {
+    return allSessions
+      .filter((s) => !s.saved)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [allSessions]);
 
   const saveAllSessions = (updatedSessions: BrainstormSession[]) => {
@@ -134,7 +142,6 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
       setActiveSession({ ...session, saved: true, name: newName });
     }
   };
-  void handleSaveSession; // Will be wired to UI in a subsequent task
 
   const handleSessionUpdate = (updatedSession: BrainstormSession) => {
     const index = allSessions.findIndex((s) => s.id === updatedSession.id);
@@ -168,22 +175,54 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
           <p className="subtle" style={{ textAlign: 'center' }}>
             Loading sessions...
           </p>
-        ) : sortedSessions.length === 0 ? (
+        ) : savedSessions.length === 0 && workspaceSessions.length === 0 ? (
           <p className="subtle" style={{ textAlign: 'center' }}>
             No sessions found. Create a new one to get started.
           </p>
         ) : (
-          sortedSessions.map((session) => (
-            <div key={session.id} className="session-item">
-              <div className="session-info" onClick={() => handleSelectSession(session)}>
-                <span className="session-name">{session.name}</span>
-                <span className="session-date">{new Date(session.createdAt).toLocaleString()}</span>
+          <>
+            {savedSessions.length > 0 && (
+              <div className="session-section">
+                <h4 className="session-section-header">
+                  <i className="fa-solid fa-bookmark"></i> Saved
+                </h4>
+                {savedSessions.map((session) => (
+                  <div key={session.id} className="session-item">
+                    <div className="session-info" onClick={() => handleSelectSession(session)}>
+                      <span className="session-name">{session.name}</span>
+                      <span className="session-date">{new Date(session.createdAt).toLocaleString()}</span>
+                    </div>
+                    <STButton className="danger_button" onClick={() => handleDeleteSession(session.id)}>
+                      <i className="fa-solid fa-trash-can"></i>
+                    </STButton>
+                  </div>
+                ))}
               </div>
-              <STButton className="danger_button" onClick={() => handleDeleteSession(session.id)}>
-                <i className="fa-solid fa-trash-can"></i>
-              </STButton>
-            </div>
-          ))
+            )}
+            {workspaceSessions.length > 0 && (
+              <div className="session-section">
+                <h4 className="session-section-header">
+                  <i className="fa-solid fa-clock"></i> Workspace
+                </h4>
+                {workspaceSessions.map((session) => (
+                  <div key={session.id} className="session-item">
+                    <div className="session-info" onClick={() => handleSelectSession(session)}>
+                      <span className="session-name">{session.name}</span>
+                      <span className="session-date">{new Date(session.createdAt).toLocaleString()}</span>
+                    </div>
+                    <div className="session-item-actions">
+                      <STButton className="menu_button" onClick={() => handleSaveSession(session.id)}>
+                        <i className="fa-solid fa-floppy-disk"></i>
+                      </STButton>
+                      <STButton className="danger_button" onClick={() => handleDeleteSession(session.id)}>
+                        <i className="fa-solid fa-trash-can"></i>
+                      </STButton>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
       <div className="session-actions">
