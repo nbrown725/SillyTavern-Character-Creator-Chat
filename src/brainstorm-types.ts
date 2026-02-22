@@ -4,6 +4,7 @@ import { Message } from 'sillytavern-utils-lib';
 export interface ImageAttachment {
   url: string;
   name: string;
+  mediaType?: 'image' | 'video';
 }
 
 export interface BrainstormMessage extends Message {
