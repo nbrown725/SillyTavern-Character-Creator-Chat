@@ -117,6 +117,25 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
     }
   };
 
+  const handleSaveSession = async (sessionId: string) => {
+    const session = allSessions.find((s) => s.id === sessionId);
+    if (!session) return;
+
+    const newName = await globalContext.Popup.show.input('Save Session', session.name);
+    if (!newName) return;
+
+    const updatedSessions = allSessions.map((s) =>
+      s.id === sessionId ? { ...s, saved: true, name: newName } : s,
+    );
+    saveAllSessions(updatedSessions);
+
+    // Update active session if it's the one being saved
+    if (activeSession?.id === sessionId) {
+      setActiveSession({ ...session, saved: true, name: newName });
+    }
+  };
+  void handleSaveSession; // Will be wired to UI in a subsequent task
+
   const handleSessionUpdate = (updatedSession: BrainstormSession) => {
     const index = allSessions.findIndex((s) => s.id === updatedSession.id);
     const newAllSessions = [...allSessions];
