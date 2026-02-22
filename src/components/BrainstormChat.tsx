@@ -21,6 +21,7 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
   const [isLoading, setIsLoading] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
+  const [editingImages, setEditingImages] = useState<ImageAttachment[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [pendingImages, setPendingImages] = useState<File[]>([]);
@@ -213,11 +214,13 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
   const handleStartEdit = (msg: BrainstormMessage) => {
     setEditingMessageId(msg.id);
     setEditingContent(msg.content);
+    setEditingImages(msg.images ? [...msg.images] : []);
   };
 
   const handleCancelEdit = () => {
     setEditingMessageId(null);
     setEditingContent('');
+    setEditingImages([]);
   };
 
   const handleSaveEdit = async () => {
@@ -230,7 +233,7 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
 
     if (editedMessage.role === 'assistant') {
       const updatedMessages = messages.map((m) =>
-        m.id === editingMessageId ? { ...m, content: editingContent } : m,
+        m.id === editingMessageId ? { ...m, content: editingContent, images: editingImages.length > 0 ? editingImages : undefined } : m,
       );
       setMessages(updatedMessages);
       onSessionUpdate({ ...session, messages: updatedMessages });
@@ -246,7 +249,7 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
 
     const previousMessages = messages;
     const truncatedMessages = messages.slice(0, messageIndex);
-    const editedMsg = { ...messages[messageIndex], content: editingContent };
+    const editedMsg = { ...messages[messageIndex], content: editingContent, images: editingImages.length > 0 ? editingImages : undefined };
     const messagesForRequest = [...truncatedMessages, editedMsg];
 
     handleCancelEdit();
@@ -314,6 +317,22 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
                 editingMessageId === msg.id ? (
                   <div key={msg.id} className="message-editor">
                     <STTextarea value={editingContent} onChange={(e) => setEditingContent(e.target.value)} rows={5} />
+                    {editingImages.length > 0 && (
+                      <div className="pending-images-preview">
+                        {editingImages.map((img, index) => (
+                          <div key={index} className="pending-image-item">
+                            <img src={img.url} alt={img.name} />
+                            <STButton
+                              className="remove-image-button danger_button"
+                              onClick={() => setEditingImages((prev) => prev.filter((_, i) => i !== index))}
+                              title="Remove image"
+                            >
+                              <i className="fa-solid fa-times"></i>
+                            </STButton>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="editor-buttons">
                       <STButton onClick={handleSaveEdit}>
                         <i className="fa-solid fa-check"></i> Save &amp; Fork
@@ -359,6 +378,22 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
           return editingThis ? (
             <div key={msg.id} className="message-editor">
               <STTextarea value={editingContent} onChange={(e) => setEditingContent(e.target.value)} rows={10} />
+              {editingImages.length > 0 && (
+                <div className="pending-images-preview">
+                  {editingImages.map((img, index) => (
+                    <div key={index} className="pending-image-item">
+                      <img src={img.url} alt={img.name} />
+                      <STButton
+                        className="remove-image-button danger_button"
+                        onClick={() => setEditingImages((prev) => prev.filter((_, i) => i !== index))}
+                        title="Remove image"
+                      >
+                        <i className="fa-solid fa-times"></i>
+                      </STButton>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="editor-buttons">
                 <STButton onClick={handleSaveEdit}>
                   <i className="fa-solid fa-check"></i> {msg.role === 'assistant' ? 'Save' : 'Save & Fork'}
