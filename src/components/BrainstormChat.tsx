@@ -33,6 +33,9 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageDataUrlCache = useRef<Map<string, string>>(new Map());
 
+  const isVideoFile = (file: File) => file.type.startsWith('video/');
+  const isVideoAttachment = (img: ImageAttachment) => img.mediaType === 'video';
+
   // Refs to avoid stale closures in the async rebuild effect
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
@@ -93,11 +96,11 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
   }, [contextKey]);
 
   const addPendingImages = useCallback(async (files: File[]) => {
-    const imageFiles = files.filter((f) => f.type.startsWith('image/'));
-    if (imageFiles.length === 0) return;
+    const mediaFiles = files.filter((f) => f.type.startsWith('image/') || f.type.startsWith('video/'));
+    if (mediaFiles.length === 0) return;
 
-    const previews = await Promise.all(imageFiles.map((f) => fileToDataUrl(f)));
-    setPendingImages((prev) => [...prev, ...imageFiles]);
+    const previews = await Promise.all(mediaFiles.map((f) => fileToDataUrl(f)));
+    setPendingImages((prev) => [...prev, ...mediaFiles]);
     setPendingImagePreviews((prev) => [...prev, ...previews]);
   }, []);
 
@@ -109,7 +112,7 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
       const files = Array.from(e.clipboardData.files);
-      if (files.some((f) => f.type.startsWith('image/'))) {
+      if (files.some((f) => f.type.startsWith('image/') || f.type.startsWith('video/'))) {
         e.preventDefault();
         addPendingImages(files);
       }
@@ -389,7 +392,14 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
                       <div className="pending-images-preview">
                         {editingImages.map((img, index) => (
                           <div key={index} className="pending-image-item">
-                            <img src={img.url} alt={img.name} />
+                            {isVideoAttachment(img) ? (
+                              <div className="video-thumbnail-wrapper">
+                                <video src={img.url} muted preload="metadata" />
+                                <i className="fa-solid fa-play video-play-icon"></i>
+                              </div>
+                            ) : (
+                              <img src={img.url} alt={img.name} />
+                            )}
                             <STButton
                               className="remove-image-button danger_button"
                               onClick={() => setEditingImages((prev) => prev.filter((_, i) => i !== index))}
@@ -450,7 +460,14 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
                 <div className="pending-images-preview">
                   {editingImages.map((img, index) => (
                     <div key={index} className="pending-image-item">
-                      <img src={img.url} alt={img.name} />
+                      {isVideoAttachment(img) ? (
+                        <div className="video-thumbnail-wrapper">
+                          <video src={img.url} muted preload="metadata" />
+                          <i className="fa-solid fa-play video-play-icon"></i>
+                        </div>
+                      ) : (
+                        <img src={img.url} alt={img.name} />
+                      )}
                       <STButton
                         className="remove-image-button danger_button"
                         onClick={() => setEditingImages((prev) => prev.filter((_, i) => i !== index))}
@@ -508,15 +525,22 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
                     <div className="message-content">{msg.content}</div>
                     {msg.images && msg.images.length > 0 && (
                       <div className="message-images">
-                        {msg.images.map((img, idx) => (
-                          <img
-                            key={idx}
-                            src={img.url}
-                            alt={img.name}
-                            title={img.name}
-                            onClick={() => window.open(img.url, '_blank')}
-                          />
-                        ))}
+                        {msg.images.map((img, idx) =>
+                          isVideoAttachment(img) ? (
+                            <div key={idx} className="video-thumbnail-wrapper" title={img.name} onClick={() => window.open(img.url, '_blank')}>
+                              <video src={img.url} muted preload="metadata" />
+                              <i className="fa-solid fa-play video-play-icon"></i>
+                            </div>
+                          ) : (
+                            <img
+                              key={idx}
+                              src={img.url}
+                              alt={img.name}
+                              title={img.name}
+                              onClick={() => window.open(img.url, '_blank')}
+                            />
+                          ),
+                        )}
                       </div>
                     )}
                   </>
@@ -540,8 +564,15 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
       {pendingImagePreviews.length > 0 && (
         <div className="pending-images-preview">
           {pendingImagePreviews.map((preview, index) => (
-            <div key={index} className="pending-image-item">
-              <img src={preview} alt={pendingImages[index]?.name || 'pending'} />
+            <div key={index} className={`pending-image-item ${isVideoFile(pendingImages[index]) ? 'video-thumbnail-wrapper' : ''}`}>
+              {isVideoFile(pendingImages[index]) ? (
+                <>
+                  <video src={preview} muted preload="metadata" />
+                  <i className="fa-solid fa-play video-play-icon"></i>
+                </>
+              ) : (
+                <img src={preview} alt={pendingImages[index]?.name || 'pending'} />
+              )}
               <STButton
                 className="remove-image-button danger_button"
                 onClick={() => removePendingImage(index)}
@@ -557,7 +588,7 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,video/*"
           multiple
           style={{ display: 'none' }}
           onChange={handleFileInputChange}
