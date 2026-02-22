@@ -9,6 +9,7 @@ import { Session } from '../generate.js';
 
 const globalContext = SillyTavern.getContext();
 const BRAINSTORM_SESSIONS_KEY = 'charCreator_brainstormSessions';
+const MAX_UNSAVED_SESSIONS = 5;
 
 interface BrainstormSessionManagerProps {
   contextToSend: ExtensionSettings['contextToSend'];
@@ -27,7 +28,11 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
     const sessionsFromStorage: BrainstormSession[] = JSON.parse(
       localStorage.getItem(BRAINSTORM_SESSIONS_KEY) || '[]',
     );
-    setAllSessions(sessionsFromStorage);
+    const migratedSessions = sessionsFromStorage.map((s) => ({
+      ...s,
+      saved: s.saved ?? true,
+    }));
+    setAllSessions(migratedSessions);
     setIsLoading(false);
   }, []);
 
@@ -41,11 +46,7 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
   };
 
   const handleCreateNewSession = async () => {
-    const name = await globalContext.Popup.show.input(
-      'New Brainstorm Session',
-      `Brainstorm - ${new Date().toLocaleDateString()}`,
-    );
-    if (!name) return;
+    const name = `Brainstorm - ${new Date().toLocaleString()}`;
 
     try {
       const currentSettings = settingsManager.getSettings();
@@ -67,6 +68,7 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
           persona: contextToSend.persona,
           messages: contextToSend.messages,
         },
+        saved: false,
       };
 
       const initialMsgs = await buildInitialBrainstormMessages(
@@ -78,7 +80,24 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
       );
       newSession.messages = initialMsgs;
 
-      saveAllSessions([...allSessions, newSession]);
+      let updatedSessions = [...allSessions];
+
+      // Enforce cap: remove oldest unsaved session if at limit
+      const unsavedSessions = updatedSessions
+        .filter((s) => !s.saved)
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+      if (unsavedSessions.length >= MAX_UNSAVED_SESSIONS) {
+        const oldestUnsaved = unsavedSessions[0];
+        updatedSessions = updatedSessions.filter((s) => s.id !== oldestUnsaved.id);
+        // If the removed session was the active session, clear active view
+        if (activeSession?.id === oldestUnsaved.id) {
+          setActiveSession(null);
+        }
+      }
+
+      updatedSessions.push(newSession);
+      saveAllSessions(updatedSessions);
       setActiveSession(newSession);
     } catch (error: any) {
       console.error('Failed to create brainstorm session:', error);
