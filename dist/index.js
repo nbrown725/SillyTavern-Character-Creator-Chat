@@ -23021,7 +23021,7 @@ function AA(t, r) {
         image_url: { url: u, detail: "auto" }
       });
     }
-    return { role: i.role, content: s };
+    return s.length === 1 ? { role: i.role, content: i.content } : { role: i.role, content: s };
   });
 }
 const N1 = ({ originalContent: t, newContent: r }) => {
@@ -23913,9 +23913,8 @@ const e0 = SillyTavern.getContext(), qA = ({ session: t, onBack: r, onSessionUpd
   const [s, o] = $.useState(t.messages), [u, f] = $.useState(""), [p, h] = $.useState(!1), [m, y] = $.useState(null), [_, b] = $.useState(""), [g, d] = $.useState([]), S = $.useRef(null), x = $.useRef(null), [T, A] = $.useState([]), [D, C] = $.useState([]), N = $.useRef(null), M = $.useRef(/* @__PURE__ */ new Map()), k = $.useCallback(async (F) => {
     const fe = F.filter((ae) => ae.type.startsWith("image/"));
     if (fe.length === 0) return;
-    A((ae) => [...ae, ...fe]);
     const G = await Promise.all(fe.map((ae) => O1(ae)));
-    C((ae) => [...ae, ...G]);
+    A((ae) => [...ae, ...fe]), C((ae) => [...ae, ...G]);
   }, []), H = $.useCallback((F) => {
     A((fe) => fe.filter((G, ae) => ae !== F)), C((fe) => fe.filter((G, ae) => ae !== F));
   }, []), X = $.useCallback(

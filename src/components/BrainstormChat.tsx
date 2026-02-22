@@ -33,9 +33,8 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
     const imageFiles = files.filter((f) => f.type.startsWith('image/'));
     if (imageFiles.length === 0) return;
 
-    setPendingImages((prev) => [...prev, ...imageFiles]);
-
     const previews = await Promise.all(imageFiles.map((f) => fileToDataUrl(f)));
+    setPendingImages((prev) => [...prev, ...imageFiles]);
     setPendingImagePreviews((prev) => [...prev, ...previews]);
   }, []);
 

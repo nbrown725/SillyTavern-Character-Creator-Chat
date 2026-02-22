@@ -83,9 +83,7 @@ describe('buildApiMessages', () => {
     ];
     const emptyCache = new Map<string, string>();
     const result = buildApiMessages(messages as any, emptyCache);
-    expect(result[0].role).toBe('user');
-    const content = result[0].content as unknown as any[];
-    expect(content).toHaveLength(1);
-    expect(content[0]).toEqual({ type: 'text', text: 'Describe this' });
+    // Falls back to plain string format when no images resolve
+    expect(result[0]).toEqual({ role: 'user', content: 'Describe this' });
   });
 });
