@@ -198,7 +198,7 @@ export function buildApiMessages(messages: BrainstormMessage[], imageDataUrls?: 
       }
     }
 
-    // Fall back to plain string if no images actually resolved
+    // Fall back to plain string if no media actually resolved
     if (contentParts.length === 1) {
       return { role: msg.role, content: msg.content };
     }

@@ -23879,38 +23879,45 @@ const iu = SillyTavern.getContext(), Wy = "charCreator_reviseSessions", BA = ({
       " New Session"
     ] }) })
   ] });
-}, UA = SillyTavern.getContext(), HA = 50 * 1024 * 1024;
+}, UA = SillyTavern.getContext(), HA = 50 * 1024 * 1024, qA = {
+  "x-msvideo": "avi",
+  quicktime: "mov",
+  "x-matroska": "mkv",
+  "x-ms-wmv": "wmv",
+  "x-flv": "flv",
+  "3gpp": "3gp"
+};
 function O1(t) {
   return new Promise((r, i) => {
     const s = new FileReader();
     s.onload = () => r(s.result), s.onerror = () => i(new Error("Failed to read file")), s.readAsDataURL(t);
   });
 }
-async function qA(t) {
+async function FA(t) {
   const r = t.type.startsWith("video/");
   r && t.size > HA && Ne(
     "warning",
     `Video "${t.name}" is ${(t.size / 1024 / 1024).toFixed(1)}MB. Large videos may be slow to upload and expensive in tokens.`
   );
-  const s = (await O1(t)).split(",")[1], o = t.type.split("/")[1] || "png", u = `brainstorm_${Date.now()}`, f = await fetch("/api/images/upload", {
+  const s = (await O1(t)).split(",")[1], o = t.type.split("/")[1] || "png", u = qA[o] || o, f = `brainstorm_${Date.now()}`, p = await fetch("/api/images/upload", {
     method: "POST",
     headers: UA.getRequestHeaders(),
     body: JSON.stringify({
       image: s,
-      format: o,
+      format: u,
       ch_name: "brainstorm",
-      filename: u
+      filename: f
     })
   });
-  if (!f.ok)
-    throw new Error(`Upload failed: ${f.statusText}`);
+  if (!p.ok)
+    throw new Error(`Upload failed: ${p.statusText}`);
   return {
-    url: (await f.json()).path,
+    url: (await p.json()).path,
     name: t.name,
     ...r ? { mediaType: "video" } : {}
   };
 }
-async function FA(t) {
+async function ZA(t) {
   const r = await fetch(t);
   if (!r.ok)
     throw new Error(`Failed to fetch image: ${r.statusText}`);
@@ -23988,10 +23995,10 @@ async function D1(t, r, i, s, o) {
   return p;
 }
 const e0 = SillyTavern.getContext();
-function ZA() {
+function GA() {
   return document.getElementById("openai_video_inlining_supported")?.dataset.ccToggle === "true";
 }
-const GA = ({ session: t, onBack: r, onSessionUpdate: i, contextToSend: s, sessionForContext: o }) => {
+const VA = ({ session: t, onBack: r, onSessionUpdate: i, contextToSend: s, sessionForContext: o }) => {
   const [u, f] = Y.useState(t.messages), [p, h] = Y.useState(""), [m, y] = Y.useState(!1), [_, b] = Y.useState(null), [v, d] = Y.useState(""), [S, E] = Y.useState([]), T = Y.useRef(null), A = Y.useRef(null), [D, C] = Y.useState([]), [N, M] = Y.useState([]), k = Y.useRef(null), H = Y.useRef(/* @__PURE__ */ new Map()), $ = (G) => G.type.startsWith("video/"), I = (G) => G.mediaType === "video", V = Y.useRef(u);
   V.current = u;
   const K = Y.useRef(t);
@@ -24074,7 +24081,7 @@ const GA = ({ session: t, onBack: r, onSessionUpdate: i, contextToSend: s, sessi
           for (const Ce of xe.images)
             if (!H.current.has(Ce.url))
               try {
-                const ie = await FA(Ce.url);
+                const ie = await ZA(Ce.url);
                 H.current.set(Ce.url, ie);
               } catch (ie) {
                 console.warn(`Failed to load image ${Ce.url}, skipping`, ie);
@@ -24082,7 +24089,7 @@ const GA = ({ session: t, onBack: r, onSessionUpdate: i, contextToSend: s, sessi
         }
       me(), y(!0);
       try {
-        const xe = !ZA(), Ce = NA(G, H.current, xe), ie = await A1(
+        const xe = !GA(), Ce = NA(G, H.current, xe), ie = await A1(
           ae.profileId,
           Ce,
           ae.maxResponseToken,
@@ -24117,11 +24124,11 @@ const GA = ({ session: t, onBack: r, onSessionUpdate: i, contextToSend: s, sessi
     let ae = [];
     if (D.length > 0)
       try {
-        ae = await Promise.all(D.map((ie) => qA(ie)));
+        ae = await Promise.all(D.map((ie) => FA(ie)));
         for (let ie = 0; ie < ae.length; ie++)
           H.current.set(ae[ie].url, N[ie]);
       } catch (ie) {
-        console.error("Image upload failed:", ie), Ne("error", `Image upload failed: ${ie.message}`);
+        console.error("Upload failed:", ie), Ne("error", `Upload failed: ${ie.message}`);
         return;
       }
     const xe = {
@@ -24388,7 +24395,7 @@ const GA = ({ session: t, onBack: r, onSessionUpdate: i, contextToSend: s, sessi
           className: "image-attach-button",
           onClick: () => k.current?.click(),
           disabled: m || !!_,
-          title: "Attach image",
+          title: "Attach image or video",
           children: /* @__PURE__ */ x.jsx("i", { className: "fa-solid fa-paperclip" })
         }
       ),
@@ -24402,7 +24409,7 @@ const GA = ({ session: t, onBack: r, onSessionUpdate: i, contextToSend: s, sessi
       )
     ] })
   ] });
-}, t0 = SillyTavern.getContext(), _d = "charCreator_brainstormSessions", VA = 5, YA = ({ contextToSend: t, sessionForContext: r }) => {
+}, t0 = SillyTavern.getContext(), _d = "charCreator_brainstormSessions", YA = 5, XA = ({ contextToSend: t, sessionForContext: r }) => {
   const [i, s] = Y.useState([]), [o, u] = Y.useState(null), [f, p] = Y.useState(!0);
   Y.useEffect(() => {
     const E = JSON.parse(localStorage.getItem(_d) || "[]"), T = E.some((D) => D.saved === void 0), A = E.map((D) => ({
@@ -24445,7 +24452,7 @@ const GA = ({ session: t, onBack: r, onSessionUpdate: i, contextToSend: s, sessi
       A.messages = D;
       let C = [...i];
       const N = C.filter((M) => !M.saved).sort((M, k) => new Date(M.createdAt).getTime() - new Date(k.createdAt).getTime());
-      if (N.length >= VA) {
+      if (N.length >= YA) {
         const M = N[0];
         C = C.filter((k) => k.id !== M.id), o?.id === M.id && u(null);
       }
@@ -24472,7 +24479,7 @@ const GA = ({ session: t, onBack: r, onSessionUpdate: i, contextToSend: s, sessi
     T !== -1 ? A[T] = E : A.push(E), y(A), u(E);
   };
   return o ? /* @__PURE__ */ x.jsx(
-    GA,
+    VA,
     {
       session: o,
       onBack: () => u(null),
@@ -24537,14 +24544,14 @@ const Mn = SillyTavern.getContext(), n0 = "charCreator", Sd = () => ({
   ),
   draftFields: {},
   lastLoadedCharacterId: ""
-}), XA = {
+}), $A = {
   name: { label: Sr.name, rows: 1, large: !1, promptEnabled: !1 },
   description: { label: Sr.description, rows: 5, large: !0, promptEnabled: !0 },
   personality: { label: Sr.personality, rows: 4, large: !0, promptEnabled: !0 },
   scenario: { label: Sr.scenario, rows: 3, large: !0, promptEnabled: !0 },
   first_mes: { label: Sr.first_mes, rows: 3, large: !0, promptEnabled: !0 },
   mes_example: { label: Sr.mes_example, rows: 6, large: !0, promptEnabled: !0 }
-}, $A = () => {
+}, QA = () => {
   const t = Q0(), r = mt.getSettings(), [i, s] = Y.useState(Sd()), [o, u] = Y.useState([]), [f, p] = Y.useState(!0), [h, m] = Y.useState("core"), [y, _] = Y.useState([]), [b, v] = Y.useState([]), [d, S] = Y.useState(null), [E, T] = Y.useState(null), [A, D] = Y.useState(!1), [C, N] = Y.useState(null);
   Y.useEffect(() => {
     (async () => {
@@ -25257,7 +25264,7 @@ const Mn = SillyTavern.getContext(), n0 = "charCreator", Sd = () => ({
           h === "core" && /* @__PURE__ */ x.jsxs("div", { className: "card tab-content active", children: [
             /* @__PURE__ */ x.jsx("h3", { children: "Core Character Fields" }),
             Qn.map((L) => {
-              const ne = XA[L];
+              const ne = $A[L];
               return ne ? /* @__PURE__ */ x.jsx(
                 wy,
                 {
@@ -25315,7 +25322,7 @@ const Mn = SillyTavern.getContext(), n0 = "charCreator", Sd = () => ({
             ))
           ] }),
           h === "brainstorm" && /* @__PURE__ */ x.jsx("div", { className: "card tab-content active", children: /* @__PURE__ */ x.jsx(
-            YA,
+            XA,
             {
               contextToSend: r.contextToSend,
               sessionForContext: {
@@ -25368,12 +25375,12 @@ const Mn = SillyTavern.getContext(), n0 = "charCreator", Sd = () => ({
       }
     )
   ] });
-}, QA = () => {
+}, KA = () => {
   const [t, r] = Y.useState(!1), i = () => r(!0), s = () => r(!1);
   return window.openCharacterCreatorPopup = i, t ? /* @__PURE__ */ x.jsx(
     zi,
     {
-      content: /* @__PURE__ */ x.jsx($A, {}),
+      content: /* @__PURE__ */ x.jsx(QA, {}),
       type: bn.DISPLAY,
       onComplete: s,
       options: {
@@ -25383,7 +25390,7 @@ const Mn = SillyTavern.getContext(), n0 = "charCreator", Sd = () => ({
     }
   ) : null;
 }, M1 = SillyTavern.getContext();
-async function KA() {
+async function JA() {
   const t = await M1.renderExtensionTemplateAsync(
     `third-party/${Ma}`,
     "templates/settings"
@@ -25399,7 +25406,7 @@ async function KA() {
     document.querySelector("#rm_buttons_container") ?? document.querySelector("#form_character_search_form")
   ], u = document.createElement("div");
   document.body.appendChild(u), pv.createRoot(u).render(
-    /* @__PURE__ */ x.jsx(fu.StrictMode, { children: /* @__PURE__ */ x.jsx(QA, {}) })
+    /* @__PURE__ */ x.jsx(fu.StrictMode, { children: /* @__PURE__ */ x.jsx(KA, {}) })
   ), o.forEach((p) => {
     if (!p) return;
     const h = document.createElement("div");
@@ -25410,12 +25417,12 @@ async function KA() {
     }));
   });
 }
-function JA() {
+function WA() {
   return !!M1.ConnectionManagerRequestService;
 }
-JA() ? HE().then(() => {
-  KA();
+WA() ? HE().then(() => {
+  JA();
 }) : Ne("error", `[${Ma}] Make sure ST is updated.`);
 export {
-  KA as init
+  JA as init
 };

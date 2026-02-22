@@ -234,8 +234,8 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
           imageDataUrlCache.current.set(uploadedImages[i].url, pendingImagePreviews[i]);
         }
       } catch (error: any) {
-        console.error('Image upload failed:', error);
-        st_echo('error', `Image upload failed: ${error.message}`);
+        console.error('Upload failed:', error);
+        st_echo('error', `Upload failed: ${error.message}`);
         return;
       }
     }
@@ -617,7 +617,7 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
           className="image-attach-button"
           onClick={() => fileInputRef.current?.click()}
           disabled={isLoading || !!editingMessageId}
-          title="Attach image"
+          title="Attach image or video"
         >
           <i className="fa-solid fa-paperclip"></i>
         </STButton>
