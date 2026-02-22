@@ -181,7 +181,7 @@ export const MainPopup: FC = () => {
       });
       newGreetings.forEach((greeting, index) => {
         const fieldName = `alternate_greetings_${index + 1}`;
-        newFields[fieldName] = { ...greeting, label: `Alternate Greeting ${index + 1}` };
+        newFields[fieldName] = { ...greeting, label: `Alternate_Greeting_${index + 1}` };
       });
       return { ...prev, fields: newFields };
     });
@@ -393,7 +393,7 @@ export const MainPopup: FC = () => {
       if (typeof fieldId === 'number') {
         current = greetings[fieldId]?.value ?? '';
         original = loadedCharacter.data?.alternate_greetings?.[fieldId] ?? '';
-        fieldName = `Alternate Greeting ${fieldId + 1}`;
+        fieldName = `Alternate_Greeting_${fieldId + 1}`;
       } else {
         current = session.fields[fieldId]?.value ?? '';
         original = (loadedCharacter as any)[fieldId] ?? loadedCharacter.data?.[fieldId] ?? '';

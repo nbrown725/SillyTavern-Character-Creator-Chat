@@ -111,7 +111,7 @@ const calculateNewState = (
         newState.fields[fieldName] = {
           value: greeting,
           prompt: '', // Prompts are not managed in revise sessions.
-          label: `Alternate Greeting ${index + 1}`,
+          label: `Alternate_Greeting_${index + 1}`,
         };
       });
     }

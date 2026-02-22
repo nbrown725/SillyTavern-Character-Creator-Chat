@@ -26,8 +26,8 @@ export const CHARACTER_LABELS: Record<CharacterFieldName, string> = {
   description: 'Description',
   personality: 'Personality',
   scenario: 'Scenario',
-  first_mes: 'First Message',
-  mes_example: 'Example Dialogue',
+  first_mes: 'First_Message',
+  mes_example: 'Example_Dialogue',
 };
 
 export interface CharacterField {
