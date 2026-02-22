@@ -20,6 +20,7 @@ import { CurrentStatePopup } from './CurrentStatePopup.js';
 import { CHARACTER_FIELDS } from '../generate.js';
 import { BuildPromptOptions, buildPrompt } from 'sillytavern-utils-lib';
 import * as Handlebars from 'handlebars';
+import { MarkdownContent } from './MarkdownContent.js';
 
 const globalContext = SillyTavern.getContext();
 
@@ -813,7 +814,11 @@ export const ReviseSessionChat: FC<ReviseSessionChatProps> = ({
                 )}
               </div>
               <div className={`message-bubble ${msg.role}`}>
-                <div className="message-content">{msg.content}</div>
+                {msg.role === 'assistant' ? (
+                  <MarkdownContent content={msg.content} />
+                ) : (
+                  <div className="message-content">{msg.content}</div>
+                )}
               </div>
             </div>
           ),
