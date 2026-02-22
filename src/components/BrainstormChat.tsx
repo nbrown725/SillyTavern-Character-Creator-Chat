@@ -76,7 +76,24 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
   );
 
   const handleSendMessage = useCallback(async () => {
-    if (!userInput.trim() || isLoading) return;
+    if (isLoading) return;
+
+    const chatMsgsLocal = messages.filter((m) => !m.isInitial);
+    const lastChatMsg = chatMsgsLocal[chatMsgsLocal.length - 1];
+    const canResend = lastChatMsg?.role === 'user';
+
+    if (!userInput.trim() && !canResend) return;
+
+    if (!userInput.trim() && canResend) {
+      const previousMessages = messages;
+      await sendRequest(
+        messages,
+        () => {},
+        () => setMessages(previousMessages),
+      );
+      return;
+    }
+
     const userMessage: BrainstormMessage = { id: `bm-${Date.now()}`, role: 'user', content: userInput.trim() };
     const previousMessages = messages;
     sendRequest(
@@ -123,6 +140,18 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
     const messageIndex = messages.findIndex((m) => m.id === editingMessageId);
     if (messageIndex === -1) return;
 
+    const editedMessage = messages[messageIndex];
+
+    if (editedMessage.role === 'assistant') {
+      const updatedMessages = messages.map((m) =>
+        m.id === editingMessageId ? { ...m, content: editingContent } : m,
+      );
+      setMessages(updatedMessages);
+      onSessionUpdate({ ...session, messages: updatedMessages });
+      handleCancelEdit();
+      return;
+    }
+
     const confirm = await globalContext.Popup.show.confirm(
       'Edit Message',
       'This will fork the conversation from this point, removing all subsequent messages. Continue?',
@@ -131,8 +160,8 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
 
     const previousMessages = messages;
     const truncatedMessages = messages.slice(0, messageIndex);
-    const editedMessage = { ...messages[messageIndex], content: editingContent };
-    const messagesForRequest = [...truncatedMessages, editedMessage];
+    const editedMsg = { ...messages[messageIndex], content: editingContent };
+    const messagesForRequest = [...truncatedMessages, editedMsg];
 
     handleCancelEdit();
 
@@ -176,6 +205,9 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
 
   const initialMsgs = messages.filter((m) => m.isInitial);
   const chatMsgs = messages.filter((m) => !m.isInitial);
+  const lastAssistantMsgId = chatMsgs.filter((m) => m.role === 'assistant').at(-1)?.id;
+  const lastChatMsg = chatMsgs[chatMsgs.length - 1];
+  const canResend = !!(lastChatMsg && lastChatMsg.role === 'user');
 
   return (
     <div className="brainstorm-chat">
@@ -234,13 +266,16 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
             </div>
           </details>
         )}
-        {chatMsgs.map((msg) =>
-          editingMessageId === msg.id ? (
+        {chatMsgs.map((msg) => {
+          const isLastAssistant = msg.role === 'assistant' && msg.id === lastAssistantMsgId;
+          const editingThis = editingMessageId === msg.id;
+
+          return editingThis ? (
             <div key={msg.id} className="message-editor">
               <STTextarea value={editingContent} onChange={(e) => setEditingContent(e.target.value)} rows={3} />
               <div className="editor-buttons">
                 <STButton onClick={handleSaveEdit}>
-                  <i className="fa-solid fa-check"></i> Save &amp; Fork
+                  <i className="fa-solid fa-check"></i> {msg.role === 'assistant' ? 'Save' : 'Save & Fork'}
                 </STButton>
                 <STButton onClick={handleCancelEdit}>
                   <i className="fa-solid fa-times"></i> Cancel
@@ -249,39 +284,39 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
             </div>
           ) : (
             <div key={msg.id} className={`message-bubble-wrapper ${msg.role}`}>
-              <div className="message-actions">
-                {msg.role === 'user' && !isLoading && (
-                  <STButton
-                    className="message-action-button"
-                    onClick={() => handleStartEdit(msg)}
-                    title="Edit and Fork"
-                  >
-                    <i className="fa-solid fa-pencil"></i>
-                  </STButton>
-                )}
-                {!isLoading && (
-                  <STButton
-                    className="message-action-button danger_button"
-                    onClick={() => handleDeleteMessage(msg.id)}
-                    title="Delete Message"
-                  >
-                    <i className="fa-solid fa-trash-can"></i>
-                  </STButton>
-                )}
-              </div>
               <div className={`message-bubble ${msg.role}`}>
+                {!isLoading && (
+                  <div className="message-actions">
+                    <STButton
+                      className="message-action-button"
+                      onClick={() => handleStartEdit(msg)}
+                      title={msg.role === 'assistant' ? 'Edit Message' : 'Edit and Fork'}
+                    >
+                      <i className="fa-solid fa-pencil"></i>
+                    </STButton>
+                    {isLastAssistant && (
+                      <STButton
+                        className="message-action-button"
+                        onClick={handleRegenerate}
+                        title="Regenerate response"
+                      >
+                        <i className="fa-solid fa-rotate-right"></i>
+                      </STButton>
+                    )}
+                    <STButton
+                      className="message-action-button danger_button"
+                      onClick={() => handleDeleteMessage(msg.id)}
+                      title="Delete Message"
+                    >
+                      <i className="fa-solid fa-trash-can"></i>
+                    </STButton>
+                  </div>
+                )}
                 <div className="message-content">{msg.content}</div>
               </div>
             </div>
-          ),
-        )}
-        {chatMsgs.length > 0 && !isLoading && (
-          <div className="regenerate-button-wrapper">
-            <STButton onClick={handleRegenerate} title="Regenerate response">
-              <i className="fa-solid fa-rotate-right"></i> Regenerate
-            </STButton>
-          </div>
-        )}
+          );
+        })}
         {isLoading && (
           <div className="message-bubble-wrapper assistant">
             <div className="message-bubble assistant loading">
@@ -308,7 +343,7 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
             }
           }}
         />
-        <STButton onClick={handleSendMessage} disabled={isLoading || !userInput.trim() || !!editingMessageId}>
+        <STButton onClick={handleSendMessage} disabled={isLoading || !!editingMessageId || (!userInput.trim() && !canResend)}>
           <i className="fa-solid fa-paper-plane"></i>
         </STButton>
       </div>

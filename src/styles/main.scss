@@ -458,10 +458,6 @@
 
         &.user {
             justify-content: flex-end;
-
-            .message-actions {
-                order: -1;
-            }
         }
 
         &.assistant {
@@ -471,26 +467,26 @@
         &.initial-context {
             justify-content: space-between;
             align-items: flex-start;
-        }
 
-        .message-actions {
-            display: flex;
-            gap: 5px;
-            flex-shrink: 0;
-        }
+            .message-actions {
+                display: flex;
+                gap: 5px;
+                flex-shrink: 0;
+            }
 
-        .message-action-button {
-            padding: 5px;
-            height: 28px;
-            width: 28px;
-            flex-shrink: 0;
-            opacity: 0;
-            transition: opacity 0.2s;
-            background: var(--black30a);
-        }
+            .message-action-button {
+                padding: 5px;
+                height: 28px;
+                width: 28px;
+                flex-shrink: 0;
+                opacity: 0;
+                transition: opacity 0.2s;
+                background: var(--black30a);
+            }
 
-        &:hover .message-action-button {
-            opacity: 1;
+            &:hover .message-action-button {
+                opacity: 1;
+            }
         }
     }
 
@@ -500,6 +496,30 @@
         border-radius: 18px;
         word-wrap: break-word;
         white-space: pre-wrap;
+        position: relative;
+
+        .message-actions {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        &:hover .message-actions {
+            opacity: 1;
+        }
+
+        .message-action-button {
+            padding: 4px;
+            height: 24px;
+            width: 24px;
+            flex-shrink: 0;
+            background: var(--black30a);
+            border-radius: 4px;
+        }
 
         &.user {
             background-color: var(--SmartThemeUserMesBlurTintColor);
@@ -534,12 +554,6 @@
             text-align: center;
             padding: 15px;
         }
-    }
-
-    .regenerate-button-wrapper {
-        display: flex;
-        justify-content: center;
-        padding: 5px 0;
     }
 
     .message-editor {
