@@ -3,7 +3,9 @@ import { STButton, STTextarea } from 'sillytavern-utils-lib/components/react';
 import { BrainstormMessage, BrainstormSession, ImageAttachment } from '../brainstorm-types.js';
 import { makePlainRequest, buildApiMessages } from '../request.js';
 import { uploadImage, fileToDataUrl, imageUrlToDataUrl } from '../image-utils.js';
-import { settingsManager } from '../settings.js';
+import { settingsManager, ExtensionSettings } from '../settings.js';
+import { Session } from '../generate.js';
+import { buildInitialBrainstormMessages } from '../brainstorm-prompt-builder.js';
 import { st_echo } from 'sillytavern-utils-lib/config';
 import { MarkdownContent } from './MarkdownContent.js';
 
@@ -13,9 +15,11 @@ interface BrainstormChatProps {
   session: BrainstormSession;
   onBack: () => void;
   onSessionUpdate: (updatedSession: BrainstormSession) => void;
+  contextToSend: ExtensionSettings['contextToSend'];
+  sessionForContext: Pick<Session, 'fields' | 'draftFields' | 'selectedCharacterIndexes' | 'selectedWorldNames'>;
 }
 
-export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSessionUpdate }) => {
+export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSessionUpdate, contextToSend, sessionForContext }) => {
   const [messages, setMessages] = useState<BrainstormMessage[]>(session.messages);
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -28,6 +32,65 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
   const [pendingImagePreviews, setPendingImagePreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageDataUrlCache = useRef<Map<string, string>>(new Map());
+
+  // Refs to avoid stale closures in the async rebuild effect
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const onSessionUpdateRef = useRef(onSessionUpdate);
+  onSessionUpdateRef.current = onSessionUpdate;
+  const sessionForContextRef = useRef(sessionForContext);
+  sessionForContextRef.current = sessionForContext;
+
+  // Rebuild initial context when contextToSend changes
+  const contextKey = JSON.stringify(contextToSend);
+  const isFirstContextRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstContextRender.current) {
+      isFirstContextRender.current = false;
+      return;
+    }
+
+    let cancelled = false;
+    const rebuild = async () => {
+      const currentSettings = settingsManager.getSettings();
+      try {
+        const newInitialMsgs = await buildInitialBrainstormMessages(
+          sessionForContextRef.current.fields,
+          sessionForContextRef.current.draftFields,
+          currentSettings.mainContextTemplatePreset,
+          contextToSend,
+          sessionForContextRef.current,
+        );
+        if (cancelled) return;
+
+        const chatMsgs = messagesRef.current.filter((m) => !m.isInitial);
+        const newMessages = [...newInitialMsgs, ...chatMsgs];
+
+        setMessages(newMessages);
+        onSessionUpdateRef.current({
+          ...sessionRef.current,
+          messages: newMessages,
+          contextConfig: {
+            stDescription: contextToSend.stDescription,
+            charCard: contextToSend.charCard,
+            existingFields: contextToSend.existingFields,
+            worldInfo: contextToSend.worldInfo,
+            persona: contextToSend.persona,
+            messages: contextToSend.messages,
+          },
+        });
+      } catch (error) {
+        console.error('Failed to rebuild brainstorm context:', error);
+      }
+    };
+    rebuild();
+    return () => {
+      cancelled = true;
+    };
+  }, [contextKey]);
 
   const addPendingImages = useCallback(async (files: File[]) => {
     const imageFiles = files.filter((f) => f.type.startsWith('image/'));
@@ -175,18 +238,22 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
       ...(uploadedImages.length > 0 ? { images: uploadedImages } : {}),
     };
 
-    const previousMessages = messages;
+    const messagesWithUser = [...messages, userMessage];
     sendRequest(
-      [...messages, userMessage],
+      messagesWithUser,
       () => {
-        setMessages([...messages, userMessage]);
+        setMessages(messagesWithUser);
         setUserInput('');
         setPendingImages([]);
         setPendingImagePreviews([]);
       },
-      () => setMessages(previousMessages),
+      () => {
+        // On error, keep the user message instead of reverting it
+        setMessages(messagesWithUser);
+        onSessionUpdate({ ...session, messages: messagesWithUser });
+      },
     );
-  }, [userInput, isLoading, messages, sendRequest, pendingImages, pendingImagePreviews]);
+  }, [userInput, isLoading, messages, sendRequest, pendingImages, pendingImagePreviews, session, onSessionUpdate]);
 
   const handleRegenerate = useCallback(async () => {
     if (isLoading || messages.length === 0) return;

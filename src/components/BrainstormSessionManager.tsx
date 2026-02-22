@@ -161,6 +161,8 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({ co
         session={activeSession}
         onBack={() => setActiveSession(null)}
         onSessionUpdate={handleSessionUpdate}
+        contextToSend={contextToSend}
+        sessionForContext={sessionForContext}
       />
     );
   }
