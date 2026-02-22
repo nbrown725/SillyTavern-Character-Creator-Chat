@@ -587,6 +587,14 @@
     }
 }
 
+.revise-session-chat {
+    .regenerate-button-wrapper {
+        display: flex;
+        justify-content: center;
+        padding: 5px 0;
+    }
+}
+
 /* Shared styles for state comparison views */
 .compare-state-list {
     max-height: 60vh;
