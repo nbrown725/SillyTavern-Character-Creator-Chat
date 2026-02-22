@@ -10,6 +10,7 @@ export interface BrainstormSession {
   id: string;
   name: string;
   createdAt: string;
+  saved: boolean;
   messages: BrainstormMessage[];
   contextConfig: Pick<ContextToSend, 'stDescription' | 'charCard' | 'existingFields' | 'worldInfo' | 'persona' | 'messages'>;
 }
