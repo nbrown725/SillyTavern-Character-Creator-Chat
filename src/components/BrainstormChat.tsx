@@ -4,6 +4,7 @@ import { BrainstormMessage, BrainstormSession } from '../brainstorm-types.js';
 import { makePlainRequest } from '../request.js';
 import { settingsManager } from '../settings.js';
 import { st_echo } from 'sillytavern-utils-lib/config';
+import { MarkdownContent } from './MarkdownContent.js';
 
 const globalContext = SillyTavern.getContext();
 
@@ -272,7 +273,7 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
 
           return editingThis ? (
             <div key={msg.id} className="message-editor">
-              <STTextarea value={editingContent} onChange={(e) => setEditingContent(e.target.value)} rows={3} />
+              <STTextarea value={editingContent} onChange={(e) => setEditingContent(e.target.value)} rows={10} />
               <div className="editor-buttons">
                 <STButton onClick={handleSaveEdit}>
                   <i className="fa-solid fa-check"></i> {msg.role === 'assistant' ? 'Save' : 'Save & Fork'}
@@ -312,7 +313,11 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
                     </STButton>
                   </div>
                 )}
-                <div className="message-content">{msg.content}</div>
+                {msg.role === 'assistant' ? (
+                  <MarkdownContent content={msg.content} />
+                ) : (
+                  <div className="message-content">{msg.content}</div>
+                )}
               </div>
             </div>
           );
