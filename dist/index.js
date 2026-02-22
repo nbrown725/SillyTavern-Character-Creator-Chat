@@ -25169,74 +25169,86 @@ const kn = SillyTavern.getContext(), a0 = "charCreator", Sd = () => ({
       ] }),
       /* @__PURE__ */ x.jsxs("div", { className: "wide-column", children: [
         /* @__PURE__ */ x.jsxs("div", { className: "character-field-actions", children: [
-          /* @__PURE__ */ x.jsx(
-            pe,
-            {
-              onClick: _e,
-              title: "Open global revision sessions to edit multiple fields at once",
-              children: /* @__PURE__ */ x.jsx("i", { className: "fa-solid fa-comments" })
-            }
-          ),
-          /* @__PURE__ */ x.jsx(pe, { onClick: ue, children: "Save as New" }),
-          /* @__PURE__ */ x.jsx(pe, { onClick: de, disabled: !d, children: "Override Char" }),
-          r.showSaveAsWorldInfoEntry.show && /* @__PURE__ */ x.jsx(
-            eu,
-            {
-              items: xe,
-              placeholder: "Save as WI Entry",
-              closeOnSelect: !0,
-              value: [],
-              onChange: (L) => {
-              },
-              onBeforeSelection: async (L, re) => {
-                if (!i.fields.name.value)
-                  return Ae("warning", "Please enter a name first."), !1;
-                const le = re[0], W = Ct.compile(r.prompts.worldInfoCharDefinition.content)({
-                  character: { ...i.fields, alternate_greetings: X.map((ge) => ge.value) }
-                }), ie = {
-                  uid: -1,
-                  key: [i.fields.name.value],
-                  content: W,
-                  comment: i.fields.name.value,
-                  disable: !1,
-                  keysecondary: []
-                };
-                try {
-                  await ax({ entry: ie, selectedWorldName: le, operation: "add" }), Ae("success", `Entry added to ${le}.`);
-                } catch (ge) {
-                  Ae("error", `Failed to add WI Entry: ${ge.message}`);
-                }
-                return !1;
+          /* @__PURE__ */ x.jsxs("div", { className: "toolbar-group", children: [
+            /* @__PURE__ */ x.jsx("div", { className: "toolbar-group-dropdown", title: "Load Character Data", children: /* @__PURE__ */ x.jsx(
+              eu,
+              {
+                items: Se,
+                value: d ? [String(y.indexOf(d))] : [],
+                onChange: (L) => R(L[0]),
+                multiple: !1,
+                enableSearch: !0,
+                placeholder: "Load Character..."
               }
-            }
-          ),
-          /* @__PURE__ */ x.jsxs(pe, { onClick: me, children: [
-            /* @__PURE__ */ x.jsx("i", { className: "fa-solid fa-rotate-left", style: { marginRight: "10px" } }),
-            "Reset Fields"
+            ) }),
+            /* @__PURE__ */ x.jsxs(
+              pe,
+              {
+                onClick: J,
+                disabled: It === void 0,
+                title: "Load current character",
+                children: [
+                  /* @__PURE__ */ x.jsx("i", { className: "fa-solid fa-user" }),
+                  " Load Current"
+                ]
+              }
+            )
           ] }),
-          /* @__PURE__ */ x.jsxs(
-            pe,
-            {
-              onClick: J,
-              disabled: It === void 0,
-              title: "Load current character",
-              children: [
-                /* @__PURE__ */ x.jsx("i", { className: "fa-solid fa-user" }),
-                " Load Current"
-              ]
-            }
-          ),
-          /* @__PURE__ */ x.jsx("div", { style: { width: "200px" }, title: "Load Character Data", children: /* @__PURE__ */ x.jsx(
-            eu,
-            {
-              items: Se,
-              value: d ? [String(y.indexOf(d))] : [],
-              onChange: (L) => R(L[0]),
-              multiple: !1,
-              enableSearch: !0,
-              placeholder: "Load Character..."
-            }
-          ) })
+          /* @__PURE__ */ x.jsxs("div", { className: "toolbar-group", children: [
+            /* @__PURE__ */ x.jsxs(pe, { onClick: ue, title: "Save as a new character", children: [
+              /* @__PURE__ */ x.jsx("i", { className: "fa-solid fa-floppy-disk" }),
+              " Save New"
+            ] }),
+            /* @__PURE__ */ x.jsxs(pe, { onClick: de, disabled: !d, title: "Override loaded character", children: [
+              /* @__PURE__ */ x.jsx("i", { className: "fa-solid fa-pen-to-square" }),
+              " Override"
+            ] }),
+            r.showSaveAsWorldInfoEntry.show && /* @__PURE__ */ x.jsx(
+              eu,
+              {
+                items: xe,
+                placeholder: "Save as WI Entry",
+                closeOnSelect: !0,
+                value: [],
+                onChange: (L) => {
+                },
+                onBeforeSelection: async (L, re) => {
+                  if (!i.fields.name.value)
+                    return Ae("warning", "Please enter a name first."), !1;
+                  const le = re[0], W = Ct.compile(r.prompts.worldInfoCharDefinition.content)({
+                    character: { ...i.fields, alternate_greetings: X.map((ge) => ge.value) }
+                  }), ie = {
+                    uid: -1,
+                    key: [i.fields.name.value],
+                    content: W,
+                    comment: i.fields.name.value,
+                    disable: !1,
+                    keysecondary: []
+                  };
+                  try {
+                    await ax({ entry: ie, selectedWorldName: le, operation: "add" }), Ae("success", `Entry added to ${le}.`);
+                  } catch (ge) {
+                    Ae("error", `Failed to add WI Entry: ${ge.message}`);
+                  }
+                  return !1;
+                }
+              }
+            )
+          ] }),
+          /* @__PURE__ */ x.jsxs("div", { className: "toolbar-group", children: [
+            /* @__PURE__ */ x.jsxs(pe, { onClick: me, title: "Clear all fields", children: [
+              /* @__PURE__ */ x.jsx("i", { className: "fa-solid fa-rotate-left" }),
+              " Reset"
+            ] }),
+            /* @__PURE__ */ x.jsx(
+              pe,
+              {
+                onClick: _e,
+                title: "Open global revision sessions to edit multiple fields at once",
+                children: /* @__PURE__ */ x.jsx("i", { className: "fa-solid fa-comments" })
+              }
+            )
+          ] })
         ] }),
         /* @__PURE__ */ x.jsxs("div", { className: "tab-buttons", children: [
           /* @__PURE__ */ x.jsx(

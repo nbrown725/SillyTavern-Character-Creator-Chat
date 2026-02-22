@@ -849,70 +849,78 @@ export const MainPopup: FC = () => {
         {/* Right Column */}
         <div className="wide-column">
           <div className="character-field-actions">
-            <STButton
-              onClick={handleOpenGlobalReviseSessions}
-              title="Open global revision sessions to edit multiple fields at once"
-            >
-              <i className="fa-solid fa-comments"></i>
-            </STButton>
-            <STButton onClick={handleSaveAsNew}>Save as New</STButton>
-            <STButton onClick={handleOverride} disabled={!loadedCharacter}>
-              Override Char
-            </STButton>
-            {settings.showSaveAsWorldInfoEntry.show && (
-              <STFancyDropdown
-                items={worldInfoDropdownItems}
-                placeholder="Save as WI Entry"
-                closeOnSelect
-                value={[]}
-                onChange={(v) => {}}
-                onBeforeSelection={async (current, proposed) => {
-                  if (!session.fields.name.value) {
-                    st_echo('warning', 'Please enter a name first.');
-                    return false;
-                  }
-                  const worldName = proposed[0];
-                  const template = Handlebars.compile(settings.prompts.worldInfoCharDefinition.content);
-                  const content = template({
-                    character: { ...session.fields, alternate_greetings: greetings.map((g) => g.value) },
-                  });
-                  const entry: WIEntry = {
-                    uid: -1,
-                    key: [session.fields.name.value],
-                    content,
-                    comment: session.fields.name.value,
-                    disable: false,
-                    keysecondary: [],
-                  };
-                  try {
-                    await applyWorldInfoEntry({ entry, selectedWorldName: worldName, operation: 'add' });
-                    st_echo('success', `Entry added to ${worldName}.`);
-                  } catch (err: any) {
-                    st_echo('error', `Failed to add WI Entry: ${err.message}`);
-                  }
-                  return false; // Prevent selection
-                }}
-              />
-            )}
-            <STButton onClick={handleReset}>
-              <i className="fa-solid fa-rotate-left" style={{ marginRight: '10px' }}></i>Reset Fields
-            </STButton>
-            <STButton
-              onClick={handleLoadCurrentCharacter}
-              disabled={this_chid === undefined}
-              title="Load current character"
-            >
-              <i className="fa-solid fa-user"></i> Load Current
-            </STButton>
-            <div style={{ width: '200px' }} title="Load Character Data">
-              <STFancyDropdown
-                items={characterDropdownItems}
-                value={loadedCharacter ? [String(allCharacters.indexOf(loadedCharacter))] : []}
-                onChange={(v) => handleLoadCharacter(v[0])}
-                multiple={false}
-                enableSearch
-                placeholder="Load Character..."
-              />
+            <div className="toolbar-group">
+              <div className="toolbar-group-dropdown" title="Load Character Data">
+                <STFancyDropdown
+                  items={characterDropdownItems}
+                  value={loadedCharacter ? [String(allCharacters.indexOf(loadedCharacter))] : []}
+                  onChange={(v) => handleLoadCharacter(v[0])}
+                  multiple={false}
+                  enableSearch
+                  placeholder="Load Character..."
+                />
+              </div>
+              <STButton
+                onClick={handleLoadCurrentCharacter}
+                disabled={this_chid === undefined}
+                title="Load current character"
+              >
+                <i className="fa-solid fa-user"></i> Load Current
+              </STButton>
+            </div>
+            <div className="toolbar-group">
+              <STButton onClick={handleSaveAsNew} title="Save as a new character">
+                <i className="fa-solid fa-floppy-disk"></i> Save New
+              </STButton>
+              <STButton onClick={handleOverride} disabled={!loadedCharacter} title="Override loaded character">
+                <i className="fa-solid fa-pen-to-square"></i> Override
+              </STButton>
+              {settings.showSaveAsWorldInfoEntry.show && (
+                <STFancyDropdown
+                  items={worldInfoDropdownItems}
+                  placeholder="Save as WI Entry"
+                  closeOnSelect
+                  value={[]}
+                  onChange={(v) => {}}
+                  onBeforeSelection={async (current, proposed) => {
+                    if (!session.fields.name.value) {
+                      st_echo('warning', 'Please enter a name first.');
+                      return false;
+                    }
+                    const worldName = proposed[0];
+                    const template = Handlebars.compile(settings.prompts.worldInfoCharDefinition.content);
+                    const content = template({
+                      character: { ...session.fields, alternate_greetings: greetings.map((g) => g.value) },
+                    });
+                    const entry: WIEntry = {
+                      uid: -1,
+                      key: [session.fields.name.value],
+                      content,
+                      comment: session.fields.name.value,
+                      disable: false,
+                      keysecondary: [],
+                    };
+                    try {
+                      await applyWorldInfoEntry({ entry, selectedWorldName: worldName, operation: 'add' });
+                      st_echo('success', `Entry added to ${worldName}.`);
+                    } catch (err: any) {
+                      st_echo('error', `Failed to add WI Entry: ${err.message}`);
+                    }
+                    return false; // Prevent selection
+                  }}
+                />
+              )}
+            </div>
+            <div className="toolbar-group">
+              <STButton onClick={handleReset} title="Clear all fields">
+                <i className="fa-solid fa-rotate-left"></i> Reset
+              </STButton>
+              <STButton
+                onClick={handleOpenGlobalReviseSessions}
+                title="Open global revision sessions to edit multiple fields at once"
+              >
+                <i className="fa-solid fa-comments"></i>
+              </STButton>
             </div>
           </div>
           <div className="tab-buttons">
