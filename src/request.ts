@@ -167,7 +167,7 @@ export async function makeStructuredRequest<T extends z.ZodType<any, any, any>>(
 
 /**
  * Transforms BrainstormMessages into API-ready Messages.
- * Messages with images are converted to OpenAI multimodal content arrays.
+ * Messages with images/videos are converted to OpenAI multimodal content arrays.
  * The imageDataUrls map provides base64 data URLs keyed by server path.
  */
 export function buildApiMessages(messages: BrainstormMessage[], imageDataUrls?: Map<string, string>): Message[] {
@@ -181,10 +181,17 @@ export function buildApiMessages(messages: BrainstormMessage[], imageDataUrls?: 
     for (const img of msg.images) {
       const dataUrl = imageDataUrls?.get(img.url);
       if (dataUrl) {
-        contentParts.push({
-          type: 'image_url',
-          image_url: { url: dataUrl, detail: 'auto' },
-        });
+        if (img.mediaType === 'video') {
+          contentParts.push({
+            type: 'video_url',
+            video_url: { url: dataUrl, detail: 'auto' },
+          });
+        } else {
+          contentParts.push({
+            type: 'image_url',
+            image_url: { url: dataUrl, detail: 'auto' },
+          });
+        }
       }
     }
 

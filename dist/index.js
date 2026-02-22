@@ -23016,10 +23016,13 @@ function NA(t, r) {
     const s = [{ type: "text", text: i.content }];
     for (const o of i.images) {
       const u = r?.get(o.url);
-      u && s.push({
+      u && (o.mediaType === "video" ? s.push({
+        type: "video_url",
+        video_url: { url: u, detail: "auto" }
+      }) : s.push({
         type: "image_url",
         image_url: { url: u, detail: "auto" }
-      });
+      }));
     }
     return s.length === 1 ? { role: i.role, content: i.content } : { role: i.role, content: s };
   });
