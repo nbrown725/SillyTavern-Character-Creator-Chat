@@ -1,6 +1,9 @@
 import { ImageAttachment } from './brainstorm-types.js';
+import { st_echo } from 'sillytavern-utils-lib/config';
 
 const globalContext = SillyTavern.getContext();
+
+const VIDEO_SIZE_WARNING_BYTES = 50 * 1024 * 1024; // 50MB
 
 /**
  * Reads a File as a base64 data URL string.
@@ -15,10 +18,19 @@ export function fileToDataUrl(file: File): Promise<string> {
 }
 
 /**
- * Uploads an image file to the ST server and returns an ImageAttachment.
- * Uses the existing /api/images/upload endpoint.
+ * Uploads a media file (image or video) to the ST server and returns an ImageAttachment.
+ * Uses the existing /api/images/upload endpoint which accepts both image and video formats.
  */
 export async function uploadImage(file: File): Promise<ImageAttachment> {
+  const isVideo = file.type.startsWith('video/');
+
+  if (isVideo && file.size > VIDEO_SIZE_WARNING_BYTES) {
+    st_echo(
+      'warning',
+      `Video "${file.name}" is ${(file.size / 1024 / 1024).toFixed(1)}MB. Large videos may be slow to upload and expensive in tokens.`,
+    );
+  }
+
   const dataUrl = await fileToDataUrl(file);
   const base64Data = dataUrl.split(',')[1];
   const extension = file.type.split('/')[1] || 'png';
@@ -36,13 +48,14 @@ export async function uploadImage(file: File): Promise<ImageAttachment> {
   });
 
   if (!response.ok) {
-    throw new Error(`Image upload failed: ${response.statusText}`);
+    throw new Error(`Upload failed: ${response.statusText}`);
   }
 
   const responseData = await response.json();
   return {
     url: responseData.path,
     name: file.name,
+    ...(isVideo ? { mediaType: 'video' as const } : {}),
   };
 }
 
