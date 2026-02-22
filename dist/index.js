@@ -23110,9 +23110,16 @@ const N1 = ({ originalContent: t, newContent: r }) => {
     return TA.sanitize(s);
   }, [t]);
   return K.useEffect(() => {
-    if (!r.current) return;
-    r.current.querySelectorAll("pre code").forEach((o) => {
-      OA.highlightElement(o);
+    r.current && r.current.querySelectorAll("pre").forEach((s) => {
+      const o = s.querySelector("code");
+      if (o && OA.highlightElement(o), s.querySelector(".code-copy-button")) return;
+      const u = document.createElement("button");
+      u.className = "code-copy-button", u.title = "Copy code", u.innerHTML = '<i class="fa-solid fa-clipboard"></i>', u.addEventListener("click", () => {
+        const d = s.querySelector("code")?.textContent ?? "";
+        navigator.clipboard.writeText(d), u.innerHTML = '<i class="fa-solid fa-check"></i>', setTimeout(() => {
+          u.innerHTML = '<i class="fa-solid fa-clipboard"></i>';
+        }, 1500);
+      }), s.style.position = "relative", s.appendChild(u);
     });
   }, [i]), /* @__PURE__ */ E.jsx(
     "div",

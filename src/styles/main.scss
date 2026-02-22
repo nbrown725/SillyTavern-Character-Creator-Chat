@@ -607,6 +607,7 @@
         border: 1px solid var(--SmartThemeBorderColor);
         border-radius: 6px;
         overflow-x: auto;
+        position: relative;
 
         code {
           background: none;
@@ -614,6 +615,30 @@
           border-radius: 0;
           font-size: 0.85em;
           white-space: pre;
+        }
+
+        .code-copy-button {
+          position: absolute;
+          top: 4px;
+          right: 4px;
+          padding: 4px 6px;
+          background: var(--black30a);
+          border: 1px solid var(--SmartThemeBorderColor);
+          border-radius: 4px;
+          color: var(--SmartThemeBodyColor);
+          cursor: pointer;
+          opacity: 0;
+          transition: opacity 0.2s;
+          font-size: 0.8em;
+          line-height: 1;
+
+          &:hover {
+            background: var(--SmartThemeBorderColor);
+          }
+        }
+
+        &:hover .code-copy-button {
+          opacity: 1;
         }
       }
 
