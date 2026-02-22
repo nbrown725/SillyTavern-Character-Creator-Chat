@@ -341,6 +341,37 @@
         gap: 10px;
     }
 
+    .session-section {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+
+        &:not(:last-child) {
+            margin-bottom: 10px;
+        }
+    }
+
+    .session-section-header {
+        margin: 0;
+        font-size: 0.85em;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--SmartThemeEmColor);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        i {
+            font-size: 0.9em;
+        }
+    }
+
+    .session-item-actions {
+        display: flex;
+        gap: 4px;
+        flex-shrink: 0;
+    }
+
     .session-item {
         display: flex;
         align-items: center;
