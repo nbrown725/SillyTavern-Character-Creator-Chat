@@ -23194,19 +23194,20 @@ const j1 = ({ originalContent: t, newContent: r }) => {
     const s = FA.makeHtml(t);
     return HA.sanitize(s);
   }, [t]);
-  return Y.useEffect(() => {
-    r.current && r.current.querySelectorAll("pre").forEach((s) => {
-      const l = s.querySelector("code");
-      if (l && qA.highlightElement(l), s.querySelector(".code-copy-button")) return;
-      const u = document.createElement("button");
-      u.className = "code-copy-button", u.title = "Copy code", u.innerHTML = '<i class="fa-solid fa-clipboard"></i>', u.addEventListener("click", () => {
-        const f = s.querySelector("code")?.textContent ?? "";
-        navigator.clipboard.writeText(f), u.innerHTML = '<i class="fa-solid fa-check"></i>', setTimeout(() => {
-          u.innerHTML = '<i class="fa-solid fa-clipboard"></i>';
+  return Y.useLayoutEffect(() => {
+    const s = r.current;
+    s && (s.innerHTML = i, s.querySelectorAll("pre").forEach((l) => {
+      const u = l.querySelector("code");
+      if (u && qA.highlightElement(u), l.querySelector(".code-copy-button")) return;
+      const f = document.createElement("button");
+      f.className = "code-copy-button", f.title = "Copy code", f.innerHTML = '<i class="fa-solid fa-clipboard"></i>', f.addEventListener("click", () => {
+        const p = l.querySelector("code")?.textContent ?? "";
+        navigator.clipboard.writeText(p), f.innerHTML = '<i class="fa-solid fa-check"></i>', setTimeout(() => {
+          f.innerHTML = '<i class="fa-solid fa-clipboard"></i>';
         }, 1500);
-      }), s.style.position = "relative", s.appendChild(u);
-    });
-  }, [i]), /* @__PURE__ */ S.jsx("div", { ref: r, className: "message-content markdown-rendered", dangerouslySetInnerHTML: { __html: i } });
+      }), l.style.position = "relative", l.appendChild(f);
+    }));
+  }, [i]), /* @__PURE__ */ S.jsx("div", { ref: r, className: "message-content markdown-rendered" });
 }, ki = SillyTavern.getContext(), ZA = (t) => Object.entries(t.fields).filter(([r]) => r.startsWith("alternate_greetings_")).sort((r, i) => {
   const s = parseInt(r[0].split("_")[2]), l = parseInt(i[0].split("_")[2]);
   return s - l;

@@ -1,4 +1,4 @@
-import { FC, useEffect, useRef, useMemo } from 'react';
+import { FC, useLayoutEffect, useRef, useMemo } from 'react';
 
 const { showdown, DOMPurify, hljs } = SillyTavern.libs;
 
@@ -25,9 +25,17 @@ export const MarkdownContent: FC<MarkdownContentProps> = ({ content }) => {
     return DOMPurify.sanitize(html);
   }, [content]);
 
-  useEffect(() => {
-    if (!ref.current) return;
-    ref.current.querySelectorAll('pre').forEach((pre) => {
+  // The markdown is written imperatively instead of via dangerouslySetInnerHTML: React re-applies
+  // that prop on every re-render (the `{ __html }` object is a fresh identity each time), which
+  // replaced the subtree and silently dropped the highlighting and copy buttons added below
+  // whenever an ancestor re-rendered — switching tabs in the main popup, for instance. Owning the
+  // subtree keeps React out of it, so the enhancements only ever get rebuilt when the html changes.
+  useLayoutEffect(() => {
+    const container = ref.current;
+    if (!container) return;
+    container.innerHTML = sanitizedHtml;
+
+    container.querySelectorAll('pre').forEach((pre) => {
       const codeEl = pre.querySelector('code');
       if (codeEl) {
         hljs.highlightElement(codeEl as HTMLElement);
@@ -52,7 +60,5 @@ export const MarkdownContent: FC<MarkdownContentProps> = ({ content }) => {
     });
   }, [sanitizedHtml]);
 
-  return (
-    <div ref={ref} className="message-content markdown-rendered" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
-  );
+  return <div ref={ref} className="message-content markdown-rendered" />;
 };
