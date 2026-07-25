@@ -227,6 +227,18 @@ export const MainPopup: FC = () => {
     setReviseSessionManagerOpen(false);
   };
 
+  // --- Brainstorm Extraction Handler ---
+  const handleApplyBrainstormExtraction = useCallback((newState: CharacterState) => {
+    setSession((prev) => ({
+      ...prev,
+      fields: { ...prev.fields, ...newState.fields },
+      draftFields: { ...prev.draftFields, ...newState.draftFields },
+    }));
+    // Jump to where the changes landed, otherwise the apply looks like it did nothing.
+    setActiveTab('core');
+    st_echo('success', 'Card fields updated from the brainstorm conversation.');
+  }, []);
+
   // --- Core Generation Logic ---
   const handleGenerate = useCallback(
     async (targetField: string, continueFrom?: string) => {
@@ -1027,6 +1039,7 @@ export const MainPopup: FC = () => {
                 <BrainstormSessionManager
                   isActive={activeTab === 'brainstorm'}
                   contextToSend={settings.contextToSend}
+                  onApplyToCard={handleApplyBrainstormExtraction}
                   sessionForContext={{
                     fields: session.fields,
                     draftFields: session.draftFields,

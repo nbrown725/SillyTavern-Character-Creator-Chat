@@ -5,37 +5,17 @@ import { Character } from 'sillytavern-utils-lib/types';
 import { WIEntry } from 'sillytavern-utils-lib/types/world-info';
 import { name1, st_echo } from 'sillytavern-utils-lib/config';
 import { ExtensionSettings, MessageRole, OutputFormat, settingsManager, getThinkingLevelOverride } from './settings.js';
+import { CHARACTER_FIELDS, type CharacterField, type CharacterFieldName } from './character-fields.js';
 
 import * as Handlebars from 'handlebars';
 import './handlebars-helpers.js';
 
 export const globalContext = SillyTavern.getContext();
 
-export type CharacterFieldName = 'name' | 'description' | 'personality' | 'scenario' | 'first_mes' | 'mes_example';
-
-export const CHARACTER_FIELDS: CharacterFieldName[] = [
-  'name',
-  'description',
-  'personality',
-  'scenario',
-  'first_mes',
-  'mes_example',
-];
-
-export const CHARACTER_LABELS: Record<CharacterFieldName, string> = {
-  name: 'Name',
-  description: 'Description',
-  personality: 'Personality',
-  scenario: 'Scenario',
-  first_mes: 'First_Message',
-  mes_example: 'Example_Dialogue',
-};
-
-export interface CharacterField {
-  prompt: string;
-  value: string;
-  label: string;
-}
+// Field identities live in a side-effect-free module so pure logic can import them without
+// pulling in `SillyTavern.getContext()`. Re-exported here to keep existing import sites working.
+export { CHARACTER_FIELDS, CHARACTER_LABELS } from './character-fields.js';
+export type { CharacterFieldName, CharacterField } from './character-fields.js';
 
 export interface Session {
   selectedCharacterIndexes: string[];

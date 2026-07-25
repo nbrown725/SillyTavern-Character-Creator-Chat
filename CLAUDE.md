@@ -67,6 +67,9 @@ src/
 ├── world-info-selection.ts    # Dropdown items for world info, retaining renamed/missing selections
 ├── brainstorm-types.ts        # TypeScript interfaces for brainstorm sessions and messages (BrainstormSession, BrainstormMessage, ImageAttachment)
 ├── brainstorm-prompt-builder.ts # Builds initial brainstorm messages: system prompt + context blocks via Handlebars
+├── brainstorm-extract.ts      # "Draft Card": extraction schema, instruction rendering, proposal rows, per-row filtering
+├── character-fields.ts        # Side-effect-free field IDs/labels/naming (importable by pure logic + tests)
+├── character-state.ts         # Shared state applier for revise sessions and brainstorm extraction
 ├── image-utils.ts             # Image utilities: fileToDataUrl, uploadImage (/api/images/upload), imageUrlToDataUrl
 ├── revise-prompt-builder.ts   # Constructs multi-turn revise session prompts
 ├── revise-types.ts            # Zod schemas for revise session structured responses
@@ -83,7 +86,8 @@ src/
 │   ├── ReviseSessionManager.tsx  # Create/load/save multi-turn revise sessions
 │   ├── ReviseSessionChat.tsx  # Chat UI for iterative character refinement
 │   ├── CompareFieldPopup.tsx  # Diff view for a single field vs loaded character
-│   ├── CompareStatePopup.tsx  # Diff view for entire character state
+│   ├── CompareStatePopup.tsx  # Diff view for entire character state (exports the shared DiffView)
+│   ├── ExtractReviewPopup.tsx # Per-field accept/reject review of a brainstorm card extraction
 │   ├── CurrentStatePopup.tsx  # Read-only view of current character card state
 │   ├── MarkdownContent.tsx    # Markdown rendering with syntax highlighting (showdown, DOMPurify, hljs)
 │   └── Settings.tsx           # Extension settings panel (React component)
@@ -91,6 +95,8 @@ src/
 │   └── main.scss              # Styles using ST CSS variables (--SmartTheme*)
 └── test/
     ├── parser.test.ts         # Vitest unit tests for response parsers
+    ├── character-state.test.ts # State application: greeting renumbering, draft creation/collision
+    ├── brainstorm-extract.test.ts # Extraction prompt, schema constraints, selective apply
     └── image-api-messages.test.ts # Tests for image API message handling
 ```
 
@@ -130,7 +136,7 @@ User clicks Generate → generate.ts
 
 ### Key Settings
 
-The extension has 14 configurable Handlebars prompt templates and context controls:
+The extension has 16 configurable Handlebars prompt templates and context controls:
 - `profileId` — selected LLM connection profile
 - `outputFormat` — `xml` | `json` | `none` (response format)
 - `contextToSend` — toggles for char card, world info, persona, messages, existing fields
@@ -159,6 +165,25 @@ Multi-turn freeform chat for developing character concepts. The "Brainstorm" tab
 - Context rebuilding: when `contextToSend` settings change, initial messages are rebuilt via `buildInitialBrainstormMessages()`
 - AbortController for cancelling in-flight requests
 
+**Card extraction — "Draft Card"** (`brainstorm-extract.ts`, `ExtractReviewPopup.tsx`):
+- Header button in `BrainstormChat`, enabled once the model has replied at least once
+- Sends the full transcript (images included, via `buildApiMessages`) plus a rendered
+  `brainstormExtractPrompt` instruction, through `makeStructuredRequest` so it works on models
+  without native structured output
+- The instruction lists field **IDs alongside labels** (`` `first_mes` (First_Message) ``) because
+  the schema enum takes IDs while the rest of the extension's templates are label-keyed
+- `char`/`user` render as the literal `{{char}}`/`{{user}}` macros — the prompt instructs the model
+  to write them into the card, so substituting real names would corrupt the instruction
+- Response is **additive only**: no `greetings_to_remove` / `draft_fields_to_remove`. Extraction can
+  never delete existing work, which also sidesteps the fact that the apply path merges rather than
+  replaces field maps
+- `buildProposalItems()` flattens the response into reviewable rows paired with the values they
+  would replace; the user accepts/rejects per row, and `filterExtractionResponse()` narrows the
+  response before `calculateNewState()` applies it — selection is exact, not diff-derived
+- A hint box + "Redo" re-runs extraction with `{{extractionHint}}` set, for when the model picks
+  the wrong thread out of a long conversation
+- Uses `max(maxResponseToken, 4096)`; the 1024 default truncates a whole-card response
+
 **Prompt construction** (`brainstorm-prompt-builder.ts`):
 - `buildInitialBrainstormMessages()` compiles Handlebars templates with context data
 - Context blocks ordered by `mainContextTemplatePreset` setting
@@ -173,3 +198,5 @@ Multi-turn conversations for iterative character refinement. Each session:
 - Uses Zod schemas for structured response validation
 - Supports both field-specific and global (all-fields) revision modes
 - Tracks state snapshots after each AI response for undo/comparison
+- Applies responses via the shared `calculateNewState()` in `character-state.ts` — the same applier
+  brainstorm extraction uses, so greeting renumbering and draft handling cannot drift between them

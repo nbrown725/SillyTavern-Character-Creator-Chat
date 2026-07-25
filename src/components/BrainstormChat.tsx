@@ -1,13 +1,27 @@
-import { FC, useState, useEffect, useRef, useCallback } from 'react';
-import { STButton, STTextarea } from 'sillytavern-utils-lib/components/react';
+import { FC, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { STButton, STTextarea, Popup } from 'sillytavern-utils-lib/components/react';
+import { POPUP_TYPE } from 'sillytavern-utils-lib/types/popup';
 import { BrainstormMessage, BrainstormSession, ImageAttachment } from '../brainstorm-types.js';
-import { makePlainRequest, buildApiMessages } from '../request.js';
+import { makePlainRequest, makeStructuredRequest, buildApiMessages } from '../request.js';
 import { uploadImage, fileToDataUrl, imageUrlToDataUrl } from '../image-utils.js';
 import { settingsManager, ExtensionSettings } from '../settings.js';
-import { Session } from '../generate.js';
+import { Session, CHARACTER_FIELDS } from '../generate.js';
 import { buildInitialBrainstormMessages } from '../brainstorm-prompt-builder.js';
 import { st_echo } from 'sillytavern-utils-lib/config';
 import { MarkdownContent } from './MarkdownContent.js';
+import { ExtractReviewPopup } from './ExtractReviewPopup.js';
+import { CharacterState } from '../revise-types.js';
+import { calculateNewState, getGreetings } from '../character-state.js';
+import {
+  EXTRACTION_SCHEMA_NAME,
+  ExtractionResponse,
+  MIN_EXTRACTION_RESPONSE_TOKENS,
+  ProposalItem,
+  buildExtractionInstruction,
+  buildProposalItems,
+  createExtractionSchema,
+  filterExtractionResponse,
+} from '../brainstorm-extract.js';
 
 const globalContext = SillyTavern.getContext();
 
@@ -17,6 +31,8 @@ interface BrainstormChatProps {
   onSessionUpdate: (updatedSession: BrainstormSession) => void;
   contextToSend: ExtensionSettings['contextToSend'];
   sessionForContext: Pick<Session, 'fields' | 'draftFields' | 'selectedCharacterIndexes' | 'selectedWorldNames'>;
+  /** Applies extracted field values to the character card being edited in the main popup. */
+  onApplyToCard: (newState: CharacterState) => void;
   /** False while the chat is mounted but hidden (another tab is showing). */
   isActive?: boolean;
 }
@@ -27,6 +43,7 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({
   onSessionUpdate,
   contextToSend,
   sessionForContext,
+  onApplyToCard,
   isActive = true,
 }) => {
   const [messages, setMessages] = useState<BrainstormMessage[]>(session.messages);
@@ -42,6 +59,9 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageDataUrlCache = useRef<Map<string, string>>(new Map());
   const skipVideoRef = useRef(false);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extraction, setExtraction] = useState<{ response: ExtractionResponse; items: ProposalItem[] } | null>(null);
+  const extractAbortRef = useRef<AbortController | null>(null);
 
   const isVideoFile = (file: File) => file.type.startsWith('video/');
   const isVideoAttachment = (img: ImageAttachment) => img.mediaType === 'video';
@@ -152,6 +172,24 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({
     chatEndRef.current?.scrollIntoView({ behavior: justShown ? 'auto' : 'smooth' });
   }, [messages, isActive]);
 
+  /** Populates the data-URL cache for any attachment we have not converted yet. */
+  const ensureImageDataUrls = useCallback(async (messagesToSend: BrainstormMessage[]) => {
+    for (const msg of messagesToSend) {
+      if (msg.images) {
+        for (const img of msg.images) {
+          if (!imageDataUrlCache.current.has(img.url)) {
+            try {
+              const dataUrl = await imageUrlToDataUrl(img.url);
+              imageDataUrlCache.current.set(img.url, dataUrl);
+            } catch (error) {
+              console.warn(`Failed to load image ${img.url}, skipping`, error);
+            }
+          }
+        }
+      }
+    }
+  }, []);
+
   const sendRequest = useCallback(
     async (messagesToSend: BrainstormMessage[], optimisticUpdate: () => void, revertUpdate: () => void) => {
       const settings = settingsManager.getSettings();
@@ -161,21 +199,7 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({
       }
       abortControllerRef.current = new AbortController();
 
-      // Ensure all images in messages have cached data URLs
-      for (const msg of messagesToSend) {
-        if (msg.images) {
-          for (const img of msg.images) {
-            if (!imageDataUrlCache.current.has(img.url)) {
-              try {
-                const dataUrl = await imageUrlToDataUrl(img.url);
-                imageDataUrlCache.current.set(img.url, dataUrl);
-              } catch (error) {
-                console.warn(`Failed to load image ${img.url}, skipping`, error);
-              }
-            }
-          }
-        }
-      }
+      await ensureImageDataUrls(messagesToSend);
 
       optimisticUpdate();
       setIsLoading(true);
@@ -234,8 +258,85 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({
         abortControllerRef.current = null;
       }
     },
-    [session, onSessionUpdate],
+    [session, onSessionUpdate, ensureImageDataUrls],
   );
+
+  // --- Card Extraction ---
+
+  const currentState = useMemo(
+    (): CharacterState => ({ fields: sessionForContext.fields, draftFields: sessionForContext.draftFields }),
+    [sessionForContext.fields, sessionForContext.draftFields],
+  );
+
+  const handleExtract = useCallback(
+    async (hint?: string) => {
+      const settings = settingsManager.getSettings();
+      if (!settings.profileId) {
+        st_echo('warning', 'Please select a connection profile in the extension settings.');
+        return;
+      }
+
+      const template = settings.prompts.brainstormExtractPrompt?.content;
+      if (!template) {
+        st_echo('error', 'The brainstorm card extraction prompt is missing from settings.');
+        return;
+      }
+
+      setIsExtracting(true);
+      extractAbortRef.current = new AbortController();
+
+      try {
+        await ensureImageDataUrls(messages);
+
+        const hasVideo = messages.some((m) => m.images?.some((img) => img.mediaType === 'video'));
+        const apiMessages = buildApiMessages(messages, imageDataUrlCache.current, hasVideo && skipVideoRef.current);
+
+        const fieldIds = [
+          ...CHARACTER_FIELDS.filter((id) => currentState.fields[id]),
+          ...Object.keys(currentState.draftFields),
+        ];
+        const schema = createExtractionSchema(fieldIds, getGreetings(currentState).length);
+
+        const response = (await makeStructuredRequest(
+          settings.profileId,
+          [...apiMessages, { role: 'user', content: buildExtractionInstruction(template, currentState, hint) }],
+          schema,
+          EXTRACTION_SCHEMA_NAME,
+          settings.defaultPromptEngineeringMode,
+          Math.max(settings.maxResponseToken, MIN_EXTRACTION_RESPONSE_TOKENS),
+          extractAbortRef.current.signal,
+        )) as unknown as ExtractionResponse;
+
+        setExtraction({ response, items: buildProposalItems(currentState, response) });
+      } catch (error: any) {
+        if (error?.name === 'AbortError') {
+          st_echo('info', 'Extraction was cancelled.');
+        } else {
+          console.error('Card extraction failed:', error);
+          st_echo('error', `Could not draft a card: ${error.message}`);
+        }
+      } finally {
+        setIsExtracting(false);
+        extractAbortRef.current = null;
+      }
+    },
+    [messages, currentState, ensureImageDataUrls],
+  );
+
+  const handleApplyExtraction = useCallback(
+    (selectedIds: Set<string>) => {
+      if (!extraction) return;
+      const filtered = filterExtractionResponse(extraction.response, selectedIds);
+      onApplyToCard(calculateNewState(currentState, filtered, 'global'));
+      setExtraction(null);
+    },
+    [extraction, currentState, onApplyToCard],
+  );
+
+  const handleCancelExtraction = useCallback(() => {
+    extractAbortRef.current?.abort();
+    setExtraction(null);
+  }, []);
 
   const handleSendMessage = useCallback(async () => {
     if (isLoading) return;
@@ -406,12 +507,33 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({
   const lastAssistantMsgId = chatMsgs.filter((m) => m.role === 'assistant').at(-1)?.id;
   const lastChatMsg = chatMsgs[chatMsgs.length - 1];
   const canResend = !!(lastChatMsg && lastChatMsg.role === 'user');
+  // Nothing to extract until the model has actually contributed something.
+  const canExtract = chatMsgs.some((m) => m.role === 'assistant');
 
   return (
     <div className="brainstorm-chat">
       <div className="popup_header">
         <h3>{session.name}</h3>
         <div className="popup_header_buttons">
+          <STButton
+            onClick={() => handleExtract()}
+            disabled={!canExtract || isLoading || isExtracting}
+            title={
+              canExtract
+                ? 'Turn this conversation into character card fields'
+                : 'Brainstorm a little first — there is nothing to draft from yet'
+            }
+          >
+            {isExtracting ? (
+              <>
+                <i className="fa-solid fa-spinner fa-spin"></i> Drafting
+              </>
+            ) : (
+              <>
+                <i className="fa-solid fa-wand-magic-sparkles"></i> Draft Card
+              </>
+            )}
+          </STButton>
           <STButton onClick={onBack} title="Back to sessions">
             <i className="fa-solid fa-arrow-left"></i> Back
           </STButton>
@@ -668,6 +790,24 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({
           <i className="fa-solid fa-paper-plane"></i>
         </STButton>
       </div>
+
+      {extraction && (
+        <Popup
+          type={POPUP_TYPE.DISPLAY}
+          content={
+            <ExtractReviewPopup
+              justification={extraction.response.justification}
+              items={extraction.items}
+              isExtracting={isExtracting}
+              onApply={handleApplyExtraction}
+              onReExtract={(hint) => handleExtract(hint)}
+              onCancel={handleCancelExtraction}
+            />
+          }
+          onComplete={handleCancelExtraction}
+          options={{ wide: true, large: true }}
+        />
+      )}
     </div>
   );
 };

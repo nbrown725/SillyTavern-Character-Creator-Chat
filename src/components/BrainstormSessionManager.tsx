@@ -7,6 +7,7 @@ import { buildInitialBrainstormMessages } from '../brainstorm-prompt-builder.js'
 import { st_echo } from 'sillytavern-utils-lib/config';
 import { Session } from '../generate.js';
 import { loadBrainstormSessions, saveBrainstormSessions } from '../browser-storage.js';
+import { CharacterState } from '../revise-types.js';
 
 const globalContext = SillyTavern.getContext();
 const MAX_UNSAVED_SESSIONS = 5;
@@ -14,6 +15,8 @@ const MAX_UNSAVED_SESSIONS = 5;
 interface BrainstormSessionManagerProps {
   contextToSend: ExtensionSettings['contextToSend'];
   sessionForContext: Pick<Session, 'fields' | 'draftFields' | 'selectedCharacterIndexes' | 'selectedWorldNames'>;
+  /** Applies fields extracted from a brainstorm conversation to the character card. */
+  onApplyToCard: (newState: CharacterState) => void;
   /** False while the brainstorm tab is mounted but hidden, so the chat can restore its scroll on return. */
   isActive?: boolean;
 }
@@ -21,6 +24,7 @@ interface BrainstormSessionManagerProps {
 export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
   contextToSend,
   sessionForContext,
+  onApplyToCard,
   isActive = true,
 }) => {
   const [allSessions, setAllSessions] = useState<BrainstormSession[]>([]);
@@ -197,6 +201,7 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
         onSessionUpdate={handleSessionUpdate}
         contextToSend={contextToSend}
         sessionForContext={sessionForContext}
+        onApplyToCard={onApplyToCard}
       />
     );
   }

@@ -276,3 +276,49 @@ For this session, we are focusing on: {{#if isFieldSession}}the "{{targetLabel}}
 Initial character state is provided in the context. Read the user's request, and provide a response that incorporates their changes.`;
 
 export const DEFAULT_BRAINSTORM_SYSTEM_PROMPT = `You are a creative writing assistant helping brainstorm and design a character. Engage in freeform discussion about character concepts, personality traits, backstory ideas, world-building, and narrative design. Be collaborative, offer suggestions, and help refine ideas through conversation.`;
+
+export const DEFAULT_BRAINSTORM_EXTRACT_PROMPT = `=== TASK: DRAFT CHARACTER CARD FIELDS FROM THIS CONVERSATION ===
+
+The conversation above is a brainstorming session about a character. Convert the ideas that were settled on into concrete character card field values.
+
+**What each field is for:**
+- \`name\` — The character's name, as it should appear on the card.
+- \`description\` — One concise paragraph blending appearance, demeanour, and a memorable quirk. This is the AI's "mental image" of the character.
+- \`personality\` — Explicit behavioural rules: core motivations, fears, and how they treat others. Instructions to the AI, not prose about the character.
+- \`scenario\` — Where and when the interaction takes place, and how {{char}} and {{user}} know each other.
+- \`first_mes\` — The character's opening message: an action to ground the scene, dialogue that reveals personality, and a hook that invites a reply.
+- \`mes_example\` — Two or three short exchanges written as \`{{user}}:\` / \`{{char}}:\` that demonstrate voice, vocabulary, and formatting.
+
+**Rules for selecting content:**
+1. Use only ideas that appear in the conversation above. Do not invent new material to fill a field.
+2. If several options were explored for something, use the one the user endorsed. If the user never chose, prefer the most recent and say so in your justification.
+3. Ideas that were discarded or talked out of must not appear in the output.
+4. Omit any field the conversation does not support. An omitted field is better than a guessed one.
+5. Write finished card content, not commentary. Do not describe what a field should contain — write it.
+6. Use {{char}} and {{user}} rather than literal names inside \`scenario\`, \`first_mes\`, and \`mes_example\`.
+7. Character material that fits none of the core fields — backstory, relationships, voice notes — should become a draft field with a short descriptive label.
+
+**Current field values.** This is what you would be overwriting. Leave a field out entirely if the conversation adds nothing to what is already there.
+{{#each coreFields}}
+- \`{{this.id}}\` ({{this.label}}) — {{#if this.value}}{{this.value}}{{else}}*empty*{{/if}}
+{{/each}}
+{{#is_not_empty greetings}}
+
+Existing alternate greetings:
+{{#each greetings}}
+- Greeting {{this.index}} — {{#if this.value}}{{this.value}}{{else}}*empty*{{/if}}
+{{/each}}
+{{/is_not_empty}}
+{{#is_not_empty draftFields}}
+
+Existing draft fields:
+{{#each draftFields}}
+- \`{{this.id}}\` ({{this.label}}) — {{#if this.value}}{{this.value}}{{else}}*empty*{{/if}}
+{{/each}}
+{{/is_not_empty}}
+{{#if extractionHint}}
+
+**The user has asked you to focus on this:** {{extractionHint}}
+{{/if}}
+
+In \`justification\`, briefly tell the user which fields you filled in and any choice you had to make between competing ideas from the conversation.`;

@@ -16,6 +16,7 @@ import {
   DEFAULT_REVISE_XML_PROMPT,
   DEFAULT_REVISE_TASK_DESCRIPTION,
   DEFAULT_BRAINSTORM_SYSTEM_PROMPT,
+  DEFAULT_BRAINSTORM_EXTRACT_PROMPT,
 } from './constants.js';
 import { globalContext } from './generate.js';
 
@@ -26,7 +27,7 @@ export const VERSION = '0.3.0';
 // F_1.11, XML revise prompt at F_1.12) and re-applies upstream's F_1.9 -> F_1.10 content as
 // F_1.12 -> F_1.13, since existing fork installs are already past F_1.10 and would otherwise
 // never run it.
-export const FORMAT_VERSION = 'F_1.13';
+export const FORMAT_VERSION = 'F_1.14';
 
 export type ThinkingLevel = 'default' | 'min' | 'low' | 'medium' | 'high' | 'max';
 
@@ -115,6 +116,7 @@ export interface ExtensionSettings {
     reviseXmlPrompt: PromptSetting;
     reviseTaskDescription: PromptSetting;
     brainstormSystemPrompt: PromptSetting;
+    brainstormExtractPrompt: PromptSetting;
     [key: string]: PromptSetting;
   };
 
@@ -146,7 +148,8 @@ export type SystemPromptKey =
   | 'reviseJsonPrompt'
   | 'reviseXmlPrompt'
   | 'reviseTaskDescription'
-  | 'brainstormSystemPrompt';
+  | 'brainstormSystemPrompt'
+  | 'brainstormExtractPrompt';
 
 export const SYSTEM_PROMPT_KEYS: Array<SystemPromptKey> = [
   'stDescription',
@@ -164,6 +167,7 @@ export const SYSTEM_PROMPT_KEYS: Array<SystemPromptKey> = [
   'reviseXmlPrompt',
   'reviseTaskDescription',
   'brainstormSystemPrompt',
+  'brainstormExtractPrompt',
 ];
 
 // Map keys to their default values
@@ -183,6 +187,7 @@ export const DEFAULT_PROMPT_CONTENTS: Record<SystemPromptKey, string> = {
   reviseXmlPrompt: DEFAULT_REVISE_XML_PROMPT,
   reviseTaskDescription: DEFAULT_REVISE_TASK_DESCRIPTION,
   brainstormSystemPrompt: DEFAULT_BRAINSTORM_SYSTEM_PROMPT,
+  brainstormExtractPrompt: DEFAULT_BRAINSTORM_EXTRACT_PROMPT,
 };
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -290,6 +295,11 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
       isDefault: true,
       label: 'Brainstorm System Prompt',
     },
+    brainstormExtractPrompt: {
+      content: DEFAULT_BRAINSTORM_EXTRACT_PROMPT,
+      isDefault: true,
+      label: 'Brainstorm Card Extraction',
+    },
   },
 
   // Generic Prompt Presets
@@ -355,33 +365,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   },
 };
 
-export function convertToVariableName(key: string) {
-  // Remove non-ASCII and special characters
-  const normalized = key.replace(/[^\w\s]/g, '');
-
-  // Split by whitespace and filter out empty parts
-  const parts = normalized.split(/\s+/).filter(Boolean);
-
-  let firstWordPrinted = false;
-  return parts
-    .map((word, _) => {
-      // Remove numbers from the start of words
-      const cleanWord = word.replace(/^\d+/, '');
-      // Convert to camelCase
-      if (cleanWord) {
-        const result = firstWordPrinted
-          ? `${cleanWord[0].toUpperCase()}${cleanWord.slice(1).toLowerCase()}`
-          : cleanWord.toLowerCase();
-        if (!firstWordPrinted) {
-          firstWordPrinted = true;
-        }
-        return result;
-      }
-
-      return '';
-    })
-    .join('');
-}
+// Re-exported from the side-effect-free field module so existing import sites keep working.
+export { convertToVariableName } from './character-fields.js';
 
 /**
  * Returns the override payload for the current thinking level setting.
@@ -779,6 +764,24 @@ export async function initializeSettings(): Promise<void> {
               }
               if (previous.prompts?.worldInfoCharDefinition?.isDefault) {
                 response.prompts.worldInfoCharDefinition.content = DEFAULT_WORLD_INFO_CHARACTER_DEFINITION;
+              }
+
+              return response;
+            },
+          },
+          {
+            from: 'F_1.13',
+            to: 'F_1.14',
+            action(previous: ExtensionSettings): ExtensionSettings {
+              const response = structuredClone(previous) as ExtensionSettings;
+
+              // Adds the prompt used by "Draft Card" in brainstorm sessions.
+              if (!response.prompts.brainstormExtractPrompt) {
+                response.prompts.brainstormExtractPrompt = {
+                  content: DEFAULT_BRAINSTORM_EXTRACT_PROMPT,
+                  isDefault: true,
+                  label: 'Brainstorm Card Extraction',
+                };
               }
 
               return response;
