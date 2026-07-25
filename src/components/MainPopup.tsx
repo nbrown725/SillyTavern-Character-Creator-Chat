@@ -68,6 +68,9 @@ export const MainPopup: FC = () => {
   const [isGenerating, setIsGenerating] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'core' | 'draft' | 'brainstorm'>('core');
+  // Once the brainstorm tab has been opened it stays mounted (hidden by CSS when inactive) so an
+  // open chat, its draft input and any in-flight request survive switching tabs.
+  const [brainstormMounted, setBrainstormMounted] = useState(false);
 
   const [allCharacters, setAllCharacters] = useState<Character[]>([]);
   const [allWorldNames, setAllWorldNames] = useState<string[]>([]);
@@ -938,7 +941,10 @@ export const MainPopup: FC = () => {
               Draft Fields
             </STButton>
             <STButton
-              onClick={() => setActiveTab('brainstorm')}
+              onClick={() => {
+                setBrainstormMounted(true);
+                setActiveTab('brainstorm');
+              }}
               className={`menu_button tab-button ${activeTab === 'brainstorm' ? 'active' : ''}`}
             >
               Brainstorm
@@ -1016,9 +1022,10 @@ export const MainPopup: FC = () => {
                 ))}
               </div>
             )}
-            {activeTab === 'brainstorm' && (
-              <div className="card tab-content active">
+            {brainstormMounted && (
+              <div className={`card tab-content ${activeTab === 'brainstorm' ? 'active' : ''}`}>
                 <BrainstormSessionManager
+                  isActive={activeTab === 'brainstorm'}
                   contextToSend={settings.contextToSend}
                   sessionForContext={{
                     fields: session.fields,

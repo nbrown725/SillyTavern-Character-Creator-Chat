@@ -14,9 +14,15 @@ const MAX_UNSAVED_SESSIONS = 5;
 interface BrainstormSessionManagerProps {
   contextToSend: ExtensionSettings['contextToSend'];
   sessionForContext: Pick<Session, 'fields' | 'draftFields' | 'selectedCharacterIndexes' | 'selectedWorldNames'>;
+  /** False while the brainstorm tab is mounted but hidden, so the chat can restore its scroll on return. */
+  isActive?: boolean;
 }
 
-export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({ contextToSend, sessionForContext }) => {
+export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
+  contextToSend,
+  sessionForContext,
+  isActive = true,
+}) => {
   const [allSessions, setAllSessions] = useState<BrainstormSession[]>([]);
   const [activeSession, setActiveSession] = useState<BrainstormSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -186,6 +192,7 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({ co
     return (
       <BrainstormChat
         session={activeSession}
+        isActive={isActive}
         onBack={() => setActiveSession(null)}
         onSessionUpdate={handleSessionUpdate}
         contextToSend={contextToSend}

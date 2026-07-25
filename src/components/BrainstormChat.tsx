@@ -17,6 +17,8 @@ interface BrainstormChatProps {
   onSessionUpdate: (updatedSession: BrainstormSession) => void;
   contextToSend: ExtensionSettings['contextToSend'];
   sessionForContext: Pick<Session, 'fields' | 'draftFields' | 'selectedCharacterIndexes' | 'selectedWorldNames'>;
+  /** False while the chat is mounted but hidden (another tab is showing). */
+  isActive?: boolean;
 }
 
 export const BrainstormChat: FC<BrainstormChatProps> = ({
@@ -25,6 +27,7 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({
   onSessionUpdate,
   contextToSend,
   sessionForContext,
+  isActive = true,
 }) => {
   const [messages, setMessages] = useState<BrainstormMessage[]>(session.messages);
   const [userInput, setUserInput] = useState('');
@@ -138,9 +141,16 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({
     [addPendingImages],
   );
 
+  // Hiding the tab with `display: none` drops the message list's scroll position, so jump straight
+  // back to the latest message when the tab is shown again instead of animating from the top.
+  const wasActiveRef = useRef(isActive);
+
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const justShown = isActive && !wasActiveRef.current;
+    wasActiveRef.current = isActive;
+    if (!isActive) return;
+    chatEndRef.current?.scrollIntoView({ behavior: justShown ? 'auto' : 'smooth' });
+  }, [messages, isActive]);
 
   const sendRequest = useCallback(
     async (messagesToSend: BrainstormMessage[], optimisticUpdate: () => void, revertUpdate: () => void) => {
