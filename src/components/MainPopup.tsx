@@ -15,6 +15,7 @@ import { POPUP_TYPE } from 'sillytavern-utils-lib/types/popup';
 import { Character, FullExportData } from 'sillytavern-utils-lib/types';
 import { WIEntry } from 'sillytavern-utils-lib/types/world-info';
 import * as Handlebars from 'handlebars';
+import '../handlebars-helpers.js';
 
 import { runCharacterFieldGeneration, Session, CHARACTER_FIELDS, CHARACTER_LABELS } from '../generate.js';
 import { ExtensionSettings, settingsManager, convertToVariableName, VERSION, THINKING_LEVELS } from '../settings.js';
@@ -25,42 +26,15 @@ import { CompareFieldPopup } from './CompareFieldPopup.js';
 import { CharacterState, ReviseSessionType } from '../revise-types.js';
 import { ReviseSessionManager } from './ReviseSessionManager.js';
 import { BrainstormSessionManager } from './BrainstormSessionManager.js';
-
-if (!Handlebars.helpers['add']) {
-  Handlebars.registerHelper('add', function (a: any, b: any) {
-    return Number(a) + Number(b);
-  });
-}
-
-if (!Handlebars.helpers['join']) {
-  Handlebars.registerHelper('join', function (array: any, separator: any) {
-    if (Array.isArray(array)) {
-      return array.join(typeof separator === 'string' ? separator : ', ');
-    }
-    return '';
-  });
-}
-
-if (!Handlebars.helpers['is_not_empty']) {
-  Handlebars.registerHelper('is_not_empty', function (this: any, value, options) {
-    if (!value) {
-      return options.inverse(this);
-    }
-    if (Array.isArray(value)) {
-      return value.length > 0 ? options.fn(this) : options.inverse(this);
-    }
-    if (typeof value === 'object' && Object.keys(value).length > 0) {
-      return options.fn(this);
-    }
-    if (typeof value !== 'object' && !Array.isArray(value)) {
-      return options.fn(this);
-    }
-    return options.inverse(this);
-  });
-}
+import { buildWorldInfoCharacter } from '../world-info-export.js';
+import { buildWorldInfoDropdownItems } from '../world-info-selection.js';
+import { getWorldInfoEntries } from '../world-info-entries.js';
+import { loadCharacterSession, saveCharacterSession } from '../browser-storage.js';
+// The inline `add`/`join`/`is_not_empty` helpers that used to live here moved upstream into
+// handlebars-helpers.ts, which registers them (plus indent/json/xmlEscape) idempotently.
+import '../handlebars-helpers.js';
 
 const globalContext = SillyTavern.getContext();
-const SESSION_KEY = 'charCreator';
 
 // A default, empty session structure
 const createDefaultSession = (): Session => ({
@@ -113,7 +87,7 @@ export const MainPopup: FC = () => {
       setIsLoading(true);
       setAllCharacters(globalContext.characters);
       setAllWorldNames(world_names);
-      const savedSession: Partial<Session> = JSON.parse(localStorage.getItem(SESSION_KEY) ?? '{}');
+      const savedSession = (await loadCharacterSession()).value ?? {};
       const initialSession = createDefaultSession();
       if (savedSession.fields) initialSession.fields = { ...initialSession.fields, ...savedSession.fields };
       if (savedSession.draftFields) initialSession.draftFields = savedSession.draftFields;
@@ -132,7 +106,14 @@ export const MainPopup: FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!isLoading) localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    if (!isLoading) {
+      saveCharacterSession(session).then((result) => {
+        if (!result.persisted) {
+          console.warn('Failed to save Character Creator session:', result.error);
+          st_echo('warning', 'Character Creator session could not be saved. Browser storage may be full.');
+        }
+      });
+    }
   }, [session, isLoading]);
 
   // --- Generic Setting Handlers ---
@@ -309,7 +290,7 @@ export const MainPopup: FC = () => {
             .map(async (name: string) => {
               const worldInfo = await globalContext.loadWorldInfo(name);
               if (worldInfo) {
-                entriesGroupByWorldName[name] = Object.values(worldInfo.entries);
+                entriesGroupByWorldName[name] = getWorldInfoEntries(worldInfo, { includeDisabled: true });
               }
             }),
         );
@@ -431,7 +412,15 @@ export const MainPopup: FC = () => {
   );
 
   const handleLoadCurrentCharacter = useCallback(async () => {
-    if (this_chid === undefined) return st_echo('warning', 'No character selected in the main chat.');
+    if (selected_group) {
+      st_echo('warning', 'Cannot load the current character while a group chat is open.');
+      return;
+    }
+    if (this_chid === undefined) {
+      st_echo('warning', 'No character chat is currently open.');
+      return;
+    }
+
     await handleLoadCharacter(String(this_chid));
   }, [handleLoadCharacter]);
 
@@ -554,6 +543,10 @@ export const MainPopup: FC = () => {
   const worldInfoDropdownItems = useMemo(
     (): DropdownItem[] => allWorldNames.map((n) => ({ value: n, label: n })),
     [allWorldNames],
+  );
+  const selectableWorldInfoDropdownItems = useMemo(
+    (): DropdownItem[] => buildWorldInfoDropdownItems(allWorldNames, session.selectedWorldNames),
+    [allWorldNames, session.selectedWorldNames],
   );
   const promptPresetItems = useMemo(
     (): PresetItem[] => Object.keys(settings.promptPresets).map((k) => ({ value: k, label: k })),
@@ -726,7 +719,7 @@ export const MainPopup: FC = () => {
               </label>
               {settings.contextToSend.worldInfo && (
                 <STFancyDropdown
-                  items={worldInfoDropdownItems}
+                  items={selectableWorldInfoDropdownItems}
                   value={session.selectedWorldNames}
                   onChange={(v) => setSession((s) => ({ ...s, selectedWorldNames: v }))}
                   multiple
@@ -870,8 +863,8 @@ export const MainPopup: FC = () => {
               </div>
               <STButton
                 onClick={handleLoadCurrentCharacter}
-                disabled={this_chid === undefined}
-                title="Load current character"
+                disabled={!!selected_group || this_chid === undefined}
+                title="Load the character from the currently open chat"
               >
                 <i className="fa-solid fa-user"></i> Load Current
               </STButton>
@@ -898,7 +891,7 @@ export const MainPopup: FC = () => {
                     const worldName = proposed[0];
                     const template = Handlebars.compile(settings.prompts.worldInfoCharDefinition.content);
                     const content = template({
-                      character: { ...session.fields, alternate_greetings: greetings.map((g) => g.value) },
+                      character: buildWorldInfoCharacter(session.fields, greetings),
                     });
                     const entry: WIEntry = {
                       uid: -1,

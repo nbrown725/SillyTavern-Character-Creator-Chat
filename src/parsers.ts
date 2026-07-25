@@ -49,58 +49,43 @@ function ensureArray(data: any, schema: any) {
  * contain a fence, otherwise two adjacent blocks would be swallowed as one.
  */
 const FULL_CODE_BLOCK_REGEX = /^```(?:\w+)?[ \t]*\r?\n?((?:(?!```)[\s\S])*?)\r?\n?```$/;
-/** Matches the first fenced code block appearing anywhere in the response. */
-const INNER_CODE_BLOCK_REGEX = /```(?:\w+\n|\n)?([\s\S]*?)```/;
 
 /**
- * Builds the ordered list of strings worth attempting to parse.
- *
- * Order matters. A response that is entirely one code fence is almost always the model
- * following the format instructions, so that is tried first. The raw text comes next so that
- * a bare (unfenced) structure still parses, and — importantly — so a response whose *content*
- * happens to contain a code fence is not silently truncated to just that fence. Only if both
- * fail do we fall back to the first inner fence, which covers models that wrap the structure
- * in a fence but surround it with prose.
+ * Returns the *last* fenced code block in the response, or null if there is none.
+ * Reasoning models often sketch an example inside their thinking and then emit the real answer
+ * in a final fence, so the last block is the one to trust.
  */
-function extractCandidates(content: string): string[] {
-  const trimmed = content.trim();
-  const candidates: string[] = [];
+function extractLastCodeBlock(content: string): string | null {
+  const codeBlockRegex = /```(?:\w+\n|\n)?([\s\S]*?)```/g;
+  let match: RegExpExecArray | null;
+  let lastMatch: string | null = null;
 
-  const fullMatch = trimmed.match(FULL_CODE_BLOCK_REGEX);
-  if (fullMatch) candidates.push(fullMatch[1].trim());
+  while ((match = codeBlockRegex.exec(content)) !== null) {
+    lastMatch = match[1].trim();
+  }
 
-  candidates.push(trimmed);
-
-  const innerMatch = trimmed.match(INNER_CODE_BLOCK_REGEX);
-  if (innerMatch) candidates.push(innerMatch[1].trim());
-
-  return [...new Set(candidates)];
+  return lastMatch;
 }
 
-function parseXmlCandidate(candidate: string, options: ParseOptions): object | string {
-  // For 'continue' functionality, the XML might be incomplete. We parse what we can.
-  // The validator is too strict for partial content, so we only apply it when a schema
-  // tells us the model was asked for a complete, well-formed structure.
-  if (options.schema) {
-    const validationResult = XMLValidator.validate(candidate);
-    if (validationResult !== true) {
-      throw new Error(`Model response is not valid XML: ${validationResult.err.msg}`);
-    }
+function extractStringValue(data: any): string {
+  if (data === null || data === undefined) {
+    return '';
+  }
+  if (typeof data !== 'object') {
+    return String(data).trim();
+  }
+  if ('#text' in data) {
+    return extractStringValue(data['#text']);
+  }
+  if ('response' in data) {
+    return extractStringValue(data.response);
+  }
+  if ('message' in data) {
+    return extractStringValue(data.message);
   }
 
-  let parsedXml = xmlParser.parse(candidate);
-  if (parsedXml.root) {
-    parsedXml = parsedXml.root;
-  } else if (!options.schema && parsedXml.response !== undefined) {
-    // Handle simple <response> tag for single-field generation. Skipped when a schema is in
-    // play: there the <response> tag is one property among several, and unwrapping it here
-    // would throw away its siblings (e.g. `justification`) and fail schema validation.
-    return parsedXml.response;
-  }
-  if (options.schema) {
-    ensureArray(parsedXml, options.schema);
-  }
-  return parsedXml;
+  const firstValue = Object.values(data)[0];
+  return extractStringValue(firstValue);
 }
 
 export function parseResponse(
@@ -108,27 +93,52 @@ export function parseResponse(
   format: 'xml' | 'json' | 'none',
   options: ParseOptions = {},
 ): object | string {
-  const candidates = extractCandidates(content);
-  // `none` is raw prose — never go hunting for an inner code block to unwrap.
-  const cleanedContent = candidates[0] ?? '';
+  const trimmed = content.trim();
+
+  // Plain text is returned as-authored. Unwrapping the last fence here would truncate a first
+  // message or example dialogue that merely *contains* a code block — and the default format
+  // prompts explicitly instruct the model to fence code, so that is easy to hit. Only strip the
+  // fence when it wraps the entire response.
+  if (format === 'none') {
+    const fullBlockMatch = trimmed.match(FULL_CODE_BLOCK_REGEX);
+    return fullBlockMatch ? fullBlockMatch[1].trim() : trimmed;
+  }
+
+  // Extract content from inside code blocks, handling language identifiers
+  const codeBlockContent = extractLastCodeBlock(content);
+  let cleanedContent = codeBlockContent ?? trimmed;
 
   try {
     switch (format) {
-      case 'xml':
-      case 'json': {
-        let lastError: any;
-        for (const candidate of candidates) {
-          try {
-            return format === 'xml' ? parseXmlCandidate(candidate, options) : JSON.parse(candidate);
-          } catch (error: any) {
-            lastError = error;
+      case 'xml': {
+        // For 'continue' functionality, the XML might be incomplete. We parse what we can.
+        // The validator is too strict for partial content, so we bypass it in those cases.
+        if (options.schema) {
+          const validationResult = XMLValidator.validate(cleanedContent);
+          if (validationResult !== true) {
+            throw new Error(`Model response is not valid XML: ${validationResult.err.msg}`);
           }
         }
-        throw lastError ?? new Error(`Model response is not valid ${format.toUpperCase()}.`);
+        let parsedXml = xmlParser.parse(cleanedContent);
+        if (parsedXml.root) {
+          parsedXml = parsedXml.root;
+        } else if (!options.schema && parsedXml.response !== undefined) {
+          // Handle simple <response> tag for single-field generation. Skipped when a schema is in
+          // play: there the <response> tag is one property among several, and unwrapping it here
+          // would throw away its siblings (e.g. `justification`) and fail schema validation.
+          return extractStringValue(parsedXml.response);
+        }
+        if (options.schema) {
+          ensureArray(parsedXml, options.schema);
+          return parsedXml;
+        }
+        return extractStringValue(parsedXml);
       }
 
-      case 'none':
-        return cleanedContent;
+      case 'json': {
+        const parsedJson = JSON.parse(cleanedContent);
+        return options.schema ? parsedJson : extractStringValue(parsedJson);
+      }
 
       default:
         throw new Error(`Unsupported format specified: ${format}`);
@@ -136,12 +146,11 @@ export function parseResponse(
   } catch (error: any) {
     // If parsing fails, it might be because the AI is streaming an incomplete structure.
     // For single-field generation, we can often just return the cleaned text.
-    if (format !== 'none' && !options.schema) {
+    if (!options.schema) {
       const responseMatch = cleanedContent.match(/<response>([\s\S]*)/);
-      if (responseMatch) return responseMatch[1];
+      if (responseMatch) return responseMatch[1].replace(/<\/[\s\S]*$/, '').trim();
       const jsonMatch = cleanedContent.match(/"response":\s*"([\s\S]*)/);
       if (jsonMatch) return jsonMatch[1].replace(/"\s*}\s*$/, '');
-      return cleanedContent; // Fallback to raw cleaned content
     }
 
     console.error(`Error parsing response in format '${format}':`, error);

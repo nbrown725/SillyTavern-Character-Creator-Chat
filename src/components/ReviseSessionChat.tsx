@@ -21,6 +21,7 @@ import { CHARACTER_FIELDS } from '../generate.js';
 import { BuildPromptOptions, buildPrompt } from 'sillytavern-utils-lib';
 import * as Handlebars from 'handlebars';
 import { MarkdownContent } from './MarkdownContent.js';
+import '../handlebars-helpers.js';
 
 const globalContext = SillyTavern.getContext();
 

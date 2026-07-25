@@ -1,10 +1,12 @@
 import * as Handlebars from 'handlebars';
+import './handlebars-helpers.js';
 import { CharacterState, ReviseMessage, CHAT_HISTORY_PLACEHOLDER_ID } from './revise-types.js';
 import { ExtensionSettings, settingsManager } from './settings.js';
 import { Session, globalContext } from './generate.js';
 import { Character } from 'sillytavern-utils-lib/types';
 import { WIEntry } from 'sillytavern-utils-lib/types/world-info';
 import { selected_group, this_chid } from 'sillytavern-utils-lib/config';
+import { getWorldInfoEntries } from './world-info-entries.js';
 
 export async function buildInitialReviseMessages(
   initialState: CharacterState,
@@ -62,7 +64,7 @@ export async function buildInitialReviseMessages(
       sessionForContext.selectedWorldNames.map(async (name) => {
         const worldInfo = await globalContext.loadWorldInfo(name);
         if (worldInfo) {
-          lorebooksData[name] = Object.values(worldInfo.entries).filter((entry) => !entry.disable);
+          lorebooksData[name] = getWorldInfoEntries(worldInfo);
         }
       }),
     );

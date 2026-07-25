@@ -21,7 +21,12 @@ import { globalContext } from './generate.js';
 
 export const extensionName = 'SillyTavern-Character-Creator-Chat';
 export const VERSION = '0.3.0';
-export const FORMAT_VERSION = 'F_1.12';
+// NOTE ON VERSIONING: this fork and upstream both shipped a *different* F_1.9 -> F_1.10 step.
+// This fork's chain keeps its own numbering (brainstorm prompt at F_1.10, thinking level at
+// F_1.11, XML revise prompt at F_1.12) and re-applies upstream's F_1.9 -> F_1.10 content as
+// F_1.12 -> F_1.13, since existing fork installs are already past F_1.10 and would otherwise
+// never run it.
+export const FORMAT_VERSION = 'F_1.13';
 
 export type ThinkingLevel = 'default' | 'min' | 'low' | 'medium' | 'high' | 'max';
 
@@ -755,6 +760,25 @@ export async function initializeSettings(): Promise<void> {
                   isDefault: true,
                   label: 'Revise Session (XML Mode)',
                 };
+              }
+
+              return response;
+            },
+          },
+          {
+            from: 'F_1.12',
+            to: 'F_1.13',
+            action(previous: ExtensionSettings): ExtensionSettings {
+              // Upstream shipped this as its own F_1.9 -> F_1.10 step. Fork installs are already
+              // past F_1.10, so it is re-applied here to pick up the character-definition and
+              // world-info template fixes (notably `this.data.alternate_greetings`).
+              const response = structuredClone(previous) as ExtensionSettings;
+
+              if (previous.prompts?.charDefinitions?.isDefault) {
+                response.prompts.charDefinitions.content = DEFAULT_CHAR_CARD_DEFINITION_TEMPLATE;
+              }
+              if (previous.prompts?.worldInfoCharDefinition?.isDefault) {
+                response.prompts.worldInfoCharDefinition.content = DEFAULT_WORLD_INFO_CHARACTER_DEFINITION;
               }
 
               return response;
