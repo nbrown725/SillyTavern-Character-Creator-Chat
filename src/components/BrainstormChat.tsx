@@ -21,6 +21,7 @@ import {
   buildProposalItems,
   createExtractionSchema,
   filterExtractionResponse,
+  resolveExtractionBlock,
 } from '../brainstorm-extract.js';
 
 const globalContext = SillyTavern.getContext();
@@ -282,6 +283,15 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({
         return;
       }
 
+      // The brainstorm context template owns this prompt's role and on/off state.
+      const extractBlock = resolveExtractionBlock(
+        settings.brainstormContextTemplatePresets?.[settings.brainstormContextTemplatePreset],
+      );
+      if (!extractBlock) {
+        st_echo('warning', 'Card extraction is disabled in the brainstorm context template.');
+        return;
+      }
+
       setIsExtracting(true);
       extractAbortRef.current = new AbortController();
 
@@ -299,7 +309,10 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({
 
         const response = (await makeStructuredRequest(
           settings.profileId,
-          [...apiMessages, { role: 'user', content: buildExtractionInstruction(template, currentState, hint) }],
+          [
+            ...apiMessages,
+            { role: extractBlock.role, content: buildExtractionInstruction(template, currentState, hint) },
+          ],
           schema,
           EXTRACTION_SCHEMA_NAME,
           settings.defaultPromptEngineeringMode,
@@ -507,8 +520,13 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({
   const lastAssistantMsgId = chatMsgs.filter((m) => m.role === 'assistant').at(-1)?.id;
   const lastChatMsg = chatMsgs[chatMsgs.length - 1];
   const canResend = !!(lastChatMsg && lastChatMsg.role === 'user');
-  // Nothing to extract until the model has actually contributed something.
-  const canExtract = chatMsgs.some((m) => m.role === 'assistant');
+  // Nothing to extract until the model has contributed something, and nothing to extract *with*
+  // if the extraction prompt has been switched off in the brainstorm context template.
+  const currentSettings = settingsManager.getSettings();
+  const extractionEnabled = !!resolveExtractionBlock(
+    currentSettings.brainstormContextTemplatePresets?.[currentSettings.brainstormContextTemplatePreset],
+  );
+  const canExtract = extractionEnabled && chatMsgs.some((m) => m.role === 'assistant');
 
   return (
     <div className="brainstorm-chat">
@@ -519,9 +537,11 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({
             onClick={() => handleExtract()}
             disabled={!canExtract || isLoading || isExtracting}
             title={
-              canExtract
-                ? 'Turn this conversation into character card fields'
-                : 'Brainstorm a little first — there is nothing to draft from yet'
+              !extractionEnabled
+                ? 'Card extraction is disabled in the brainstorm context template'
+                : canExtract
+                  ? 'Turn this conversation into character card fields'
+                  : 'Brainstorm a little first — there is nothing to draft from yet'
             }
           >
             {isExtracting ? (

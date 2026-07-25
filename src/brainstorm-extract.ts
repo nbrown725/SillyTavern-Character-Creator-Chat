@@ -4,8 +4,29 @@ import './handlebars-helpers.js';
 import { CHARACTER_FIELDS, alternateGreetingIndex, isAlternateGreetingKey } from './character-fields.js';
 import { getGreetings, type GlobalStateResponse } from './character-state.js';
 import type { CharacterState } from './revise-types.js';
+import type { MessageRole } from './settings.js';
 
 export const EXTRACTION_SCHEMA_NAME = 'BrainstormCardExtraction';
+
+export const EXTRACT_PROMPT_NAME = 'brainstormExtractPrompt';
+
+/**
+ * How the brainstorm context template configures the extraction request.
+ *
+ * The prompt lives in that template so its role and on/off state are editable alongside everything
+ * else, but it is not part of the opening context — it is appended after the transcript when the
+ * user hits Draft Card. Its position in the list therefore has no effect, only `enabled` and `role`.
+ *
+ * Returns null when the block is disabled or has been removed from the template, which is what
+ * turns the Draft Card button off.
+ */
+export const resolveExtractionBlock = (
+  preset: { prompts: { promptName: string; enabled: boolean; role: MessageRole }[] } | undefined,
+): { role: MessageRole } | null => {
+  const block = preset?.prompts.find((p) => p.promptName === EXTRACT_PROMPT_NAME);
+  if (!block || !block.enabled) return null;
+  return { role: block.role };
+};
 
 /**
  * The default 1024 response tokens is fine for a single field but truncates a whole-card

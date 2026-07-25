@@ -193,9 +193,13 @@ Multi-turn freeform chat for developing character concepts. The "Brainstorm" tab
   neither of which filters exhaustively, so a brainstorm-only prompt placed there would leak into
   Generate and Revise. The separate list also means `brainstormSystemPrompt` is an ordinary movable
   entry rather than a hardcoded first message
-- Only two entries are ignored whatever the template says: `chatHistory` (no placeholder mechanism
-  exists, so "Messages to Include" has no effect on brainstorm) and `brainstormExtractPrompt`
-  (appended after the transcript by the extraction call, not part of the opening context)
+- `chatHistory` is ignored whatever the template says — no placeholder mechanism exists, so
+  "Messages to Include" has no effect on brainstorm
+- `brainstormExtractPrompt` is also skipped here, but it *is* a member of this template:
+  `resolveExtractionBlock()` reads its `role` and `enabled` flag for the Draft Card request.
+  Disabling it (or deleting it from the template) disables the Draft Card button. Its **position
+  has no effect** — it is always appended after the transcript — which the settings list spells out
+  in the entry's label
 - Respects `contextToSend` toggles (char card, world info, persona, existing fields)
 - All initial messages flagged with `isInitial: true`
 

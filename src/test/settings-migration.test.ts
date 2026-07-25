@@ -129,14 +129,47 @@ describe('catchUpToLatest', () => {
     );
   });
 
-  test('leaves a customised brainstorm template alone', () => {
+  test('does not rebuild a customised brainstorm template', () => {
     const settings = strandedSettings();
     settings.brainstormContextTemplatePresets = {
       default: { prompts: [{ enabled: false, promptName: 'personaDescription', role: 'user' }] },
     };
 
+    const prompts = catchUpToLatest(settings).brainstormContextTemplatePresets.default.prompts;
+    // The user's own entry survives untouched, ordering included; only the extraction prompt is
+    // appended, and only because it was absent.
+    expect(prompts[0]).toEqual({ enabled: false, promptName: 'personaDescription', role: 'user' });
+    expect(prompts.map((p) => p.promptName)).toEqual(['personaDescription', 'brainstormExtractPrompt']);
+  });
+
+  test('adds the extraction prompt to every brainstorm preset that lacks it', () => {
+    const settings = strandedSettings();
+    settings.brainstormContextTemplatePresets = {
+      default: { prompts: [{ enabled: true, promptName: 'brainstormSystemPrompt', role: 'system' }] },
+      custom: { prompts: [] },
+    };
+
+    const migrated = catchUpToLatest(settings);
+    for (const name of ['default', 'custom']) {
+      const block = migrated.brainstormContextTemplatePresets[name].prompts.find(
+        (p) => p.promptName === 'brainstormExtractPrompt',
+      );
+      expect(block, `${name} should carry the extraction prompt`).toEqual({
+        enabled: true,
+        promptName: 'brainstormExtractPrompt',
+        role: 'user',
+      });
+    }
+  });
+
+  test('respects an extraction block the user has already switched off', () => {
+    const settings = strandedSettings();
+    settings.brainstormContextTemplatePresets = {
+      default: { prompts: [{ enabled: false, promptName: 'brainstormExtractPrompt', role: 'system' }] },
+    };
+
     expect(catchUpToLatest(settings).brainstormContextTemplatePresets.default.prompts).toEqual([
-      { enabled: false, promptName: 'personaDescription', role: 'user' },
+      { enabled: false, promptName: 'brainstormExtractPrompt', role: 'system' },
     ]);
   });
 

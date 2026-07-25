@@ -41,7 +41,7 @@ export const VERSION = '0.3.0';
 // (brainstorm prompt at F_1.10, thinking level at F_1.11, XML revise prompt at F_1.12, upstream's
 // template fixes re-applied at F_1.13, extraction prompt at F_1.14) is preserved inside
 // `catchUpToLatest`, which applies all of it at once.
-export const FORMAT_VERSION = 'F_2.01';
+export const FORMAT_VERSION = 'F_2.02';
 
 export type ThinkingLevel = 'default' | 'min' | 'low' | 'medium' | 'high' | 'max';
 
@@ -412,6 +412,13 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
           promptName: 'personaDescription',
           role: 'system',
         },
+        {
+          // Consumed by the "Draft Card" extraction request, not the opening context: its role and
+          // enabled flag apply there, its position in this list does not.
+          enabled: true,
+          promptName: 'brainstormExtractPrompt',
+          role: 'user',
+        },
       ],
     },
   },
@@ -444,7 +451,7 @@ export const settingsManager = new ExtensionSettingsManager<ExtensionSettings>(K
  * the rest were only ever reachable by a fresh install that happened to start there, or by the
  * wildcard rewind. All of them migrate straight to FORMAT_VERSION.
  */
-export const LEGACY_FORMAT_VERSIONS = ['F_1.9', 'F_1.10', 'F_1.11', 'F_1.12', 'F_1.13', 'F_1.14', 'F_2.00'];
+export const LEGACY_FORMAT_VERSIONS = ['F_1.9', 'F_1.10', 'F_1.11', 'F_1.12', 'F_1.13', 'F_1.14', 'F_2.00', 'F_2.01'];
 
 /**
  * Everything the F_1.10 -> F_1.14 steps used to do, collapsed into one idempotent action.
@@ -492,6 +499,14 @@ export const catchUpToLatest = (previous: ExtensionSettings): ExtensionSettings 
     response.brainstormContextTemplatePresets = structuredClone(DEFAULT_SETTINGS.brainstormContextTemplatePresets);
   }
   response.brainstormContextTemplatePreset = response.brainstormContextTemplatePreset ?? 'default';
+
+  // F_2.02 — the extraction prompt joins the brainstorm template so its role and enabled flag are
+  // editable. Appended rather than inserted, since position carries no meaning for it.
+  for (const preset of Object.values(response.brainstormContextTemplatePresets)) {
+    if (!preset.prompts.some((block) => block.promptName === 'brainstormExtractPrompt')) {
+      preset.prompts.push({ enabled: true, promptName: 'brainstormExtractPrompt', role: 'user' });
+    }
+  }
 
   return response;
 };

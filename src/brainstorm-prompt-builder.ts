@@ -92,7 +92,8 @@ export async function buildInitialBrainstormMessages(
     // Brainstorm sessions have no chat-history placeholder mechanism, so chatHistory is skipped;
     // "Messages to Include" therefore has no effect on brainstorm sessions.
     if (block.promptName === 'chatHistory') continue;
-    // Appended after the transcript by the extraction call, never part of the opening context.
+    // Appended after the transcript by the extraction call, never part of the opening context. It
+    // sits in this template so its role and enabled flag are editable; both are read there.
     if (block.promptName === 'brainstormExtractPrompt') continue;
 
     const promptSetting = settings.prompts[block.promptName];

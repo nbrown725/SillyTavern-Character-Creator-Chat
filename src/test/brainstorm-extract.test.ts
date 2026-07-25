@@ -2,11 +2,13 @@ import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 import { DEFAULT_BRAINSTORM_EXTRACT_PROMPT } from '../constants.js';
 import {
+  EXTRACT_PROMPT_NAME,
   ExtractionResponse,
   buildExtractionInstruction,
   buildProposalItems,
   createExtractionSchema,
   filterExtractionResponse,
+  resolveExtractionBlock,
 } from '../brainstorm-extract.js';
 import { calculateNewState } from '../character-state.js';
 import type { CharacterState } from '../revise-types.js';
@@ -148,5 +150,30 @@ describe('proposal items', () => {
   test('an empty selection produces no changes at all', () => {
     const next = calculateNewState(state, filterExtractionResponse(response, new Set()), 'global');
     expect(next).toEqual(state);
+  });
+});
+
+describe('extraction block resolution', () => {
+  const preset = (enabled: boolean, role: 'user' | 'system' = 'user') => ({
+    prompts: [
+      { promptName: 'brainstormSystemPrompt', enabled: true, role: 'system' as const },
+      { promptName: EXTRACT_PROMPT_NAME, enabled, role },
+    ],
+  });
+
+  test('returns the role the template assigns', () => {
+    expect(resolveExtractionBlock(preset(true, 'system'))).toEqual({ role: 'system' });
+  });
+
+  test('returns null when the block is disabled', () => {
+    expect(resolveExtractionBlock(preset(false))).toBeNull();
+  });
+
+  test('returns null when the block has been removed from the template', () => {
+    expect(resolveExtractionBlock({ prompts: [] })).toBeNull();
+  });
+
+  test('returns null when there is no preset at all', () => {
+    expect(resolveExtractionBlock(undefined)).toBeNull();
   });
 });

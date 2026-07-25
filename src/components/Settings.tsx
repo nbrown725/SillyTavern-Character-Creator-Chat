@@ -31,6 +31,8 @@ interface ContextTemplateEditorProps {
   presetName: string;
   presets: Record<string, MainContextTemplatePreset>;
   prompts: ExtensionSettings['prompts'];
+  /** Suffix appended to a block's label, for entries whose position in the list is not meaningful. */
+  blockNotes?: Record<string, string>;
   onPresetNameChange: (name?: string) => void;
   onPresetsChange: (items: PresetItem[]) => void;
   onListChange: (items: SortableListItemData[]) => void;
@@ -44,6 +46,7 @@ const ContextTemplateEditor: FC<ContextTemplateEditorProps> = ({
   presetName,
   presets,
   prompts,
+  blockNotes,
   onPresetNameChange,
   onPresetsChange,
   onListChange,
@@ -52,9 +55,11 @@ const ContextTemplateEditor: FC<ContextTemplateEditorProps> = ({
   const presetItems: PresetItem[] = Object.keys(presets).map((key) => ({ value: key, label: key }));
   const listItems: SortableListItemData[] = (presets[presetName]?.prompts ?? []).map((prompt) => {
     const promptSetting = prompts[prompt.promptName];
+    const base = promptSetting ? `${promptSetting.label} (${prompt.promptName})` : prompt.promptName;
+    const note = blockNotes?.[prompt.promptName];
     return {
       id: prompt.promptName,
-      label: promptSetting ? `${promptSetting.label} (${prompt.promptName})` : prompt.promptName,
+      label: note ? `${base} — ${note}` : base,
       enabled: prompt.enabled,
       selectValue: prompt.role,
       selectOptions: [
@@ -340,6 +345,9 @@ export const CharacterCreatorSettings: FC = () => {
         presetName={settings.brainstormContextTemplatePreset}
         presets={settings.brainstormContextTemplatePresets}
         prompts={settings.prompts}
+        blockNotes={{
+          brainstormExtractPrompt: 'sent after the transcript on Draft Card; position has no effect',
+        }}
         {...templateHandlers('brainstorm')}
       />
 
