@@ -21,12 +21,26 @@ import { globalContext } from './generate.js';
 
 export const extensionName = 'SillyTavern-Character-Creator-Chat';
 export const VERSION = '0.3.0';
-// NOTE ON VERSIONING: this fork and upstream both shipped a *different* F_1.9 -> F_1.10 step.
-// This fork's chain keeps its own numbering (brainstorm prompt at F_1.10, thinking level at
-// F_1.11, XML revise prompt at F_1.12) and re-applies upstream's F_1.9 -> F_1.10 content as
-// F_1.12 -> F_1.13, since existing fork installs are already past F_1.10 and would otherwise
-// never run it.
-export const FORMAT_VERSION = 'F_1.13';
+// NOTE ON VERSIONING: keep format versions zero-padded (F_2.00, F_2.01, ... F_2.10) so that
+// comparing them as strings matches their real order.
+//
+// sillytavern-utils-lib picks the next migration with `strategy.to > current`, a plain string
+// comparison. Under the old F_1.x scheme that silently broke twice:
+//
+//   'F_1.10' > 'F_1.9'   -> false   (index 4 compares '1' against '9')
+//   'F_1.4'  > 'F_1.13'  -> true
+//
+// The first froze every install that reached F_1.9 — F_1.10 through F_1.13 could never run. The
+// second made the `from: '*'` entry (to: 'F_1.4') fire for anyone on a two-digit version, rewinding
+// their settings to F_1.4, rebuilding `prompts` from defaults, and walking them back up into the
+// same freeze. F_2.00 is greater than every F_1.x as a string, and 'F_1.4' > 'F_2.00' is false, so
+// the wildcard stays dormant.
+//
+// This fork and upstream both shipped a *different* F_1.9 -> F_1.10 step; the fork's numbering
+// (brainstorm prompt at F_1.10, thinking level at F_1.11, XML revise prompt at F_1.12, upstream's
+// template fixes re-applied at F_1.13) is preserved inside `catchUpToLatest`, which applies all of
+// it at once.
+export const FORMAT_VERSION = 'F_2.00';
 
 export type ThinkingLevel = 'default' | 'min' | 'low' | 'medium' | 'high' | 'max';
 
@@ -397,6 +411,57 @@ export function getThinkingLevelOverride(): Record<string, any> {
 
 export const settingsManager = new ExtensionSettingsManager<ExtensionSettings>(KEYS.EXTENSION, DEFAULT_SETTINGS);
 
+/**
+ * Format versions that the broken string comparison could strand. `F_1.9` is where installs froze;
+ * the rest were only ever reachable by a fresh install that happened to start there, or by the
+ * wildcard rewind. All of them migrate straight to FORMAT_VERSION.
+ */
+export const LEGACY_FORMAT_VERSIONS = ['F_1.9', 'F_1.10', 'F_1.11', 'F_1.12', 'F_1.13'];
+
+/**
+ * Everything the F_1.10 -> F_1.13 steps used to do, collapsed into one idempotent action.
+ *
+ * Idempotent because a stranded install may have already received some of it: the wildcard rewind
+ * rebuilt `prompts` from whatever the defaults were at the time, so the starting state varies.
+ * Each change is therefore guarded rather than assumed.
+ */
+export const catchUpToLatest = (previous: ExtensionSettings): ExtensionSettings => {
+  const response = structuredClone(previous) as ExtensionSettings;
+  response.prompts = response.prompts ?? ({} as ExtensionSettings['prompts']);
+
+  // F_1.10 (brainstormSystemPrompt), plus any built-in prompt the rewind may have dropped. Keyed
+  // off SYSTEM_PROMPT_KEYS so later additions are covered too.
+  for (const key of SYSTEM_PROMPT_KEYS) {
+    if (!response.prompts[key]) {
+      response.prompts[key] = {
+        content: DEFAULT_PROMPT_CONTENTS[key],
+        isDefault: true,
+        label: DEFAULT_SETTINGS.prompts[key].label,
+      };
+    }
+  }
+
+  // F_1.11
+  response.thinkingLevel = response.thinkingLevel ?? 'default';
+
+  // F_1.12 — the old default asked for a root-less XML fragment, which is not valid XML and was
+  // rejected by the parser before it ever reached the model's content.
+  if (response.prompts.reviseXmlPrompt.isDefault !== false) {
+    response.prompts.reviseXmlPrompt.content = DEFAULT_PROMPT_CONTENTS.reviseXmlPrompt;
+  }
+
+  // F_1.13 — upstream's character-definition and world-info template fixes (notably
+  // `this.data.alternate_greetings`).
+  if (response.prompts.charDefinitions.isDefault) {
+    response.prompts.charDefinitions.content = DEFAULT_CHAR_CARD_DEFINITION_TEMPLATE;
+  }
+  if (response.prompts.worldInfoCharDefinition.isDefault) {
+    response.prompts.worldInfoCharDefinition.content = DEFAULT_WORLD_INFO_CHARACTER_DEFINITION;
+  }
+
+  return response;
+};
+
 export async function initializeSettings(): Promise<void> {
   return new Promise((resolve, _reject) => {
     settingsManager
@@ -715,75 +780,9 @@ export async function initializeSettings(): Promise<void> {
               return response;
             },
           },
-          {
-            from: 'F_1.9',
-            to: 'F_1.10',
-            action(previous: ExtensionSettings): ExtensionSettings {
-              const response = {
-                ...previous,
-              } as ExtensionSettings;
-
-              // Add brainstormSystemPrompt if it doesn't exist
-              if (!response.prompts.brainstormSystemPrompt) {
-                response.prompts.brainstormSystemPrompt = {
-                  content: DEFAULT_BRAINSTORM_SYSTEM_PROMPT,
-                  isDefault: true,
-                  label: 'Brainstorm System Prompt',
-                };
-              }
-
-              return response;
-            },
-          },
-          {
-            from: 'F_1.10',
-            to: 'F_1.11',
-            action(previous: ExtensionSettings): ExtensionSettings {
-              return {
-                ...previous,
-                thinkingLevel: previous.thinkingLevel ?? 'default',
-              };
-            },
-          },
-          {
-            from: 'F_1.11',
-            to: 'F_1.12',
-            action(previous: ExtensionSettings): ExtensionSettings {
-              const response = structuredClone(previous) as ExtensionSettings;
-
-              // The old default asked for a root-less XML fragment, which is not valid XML and
-              // was rejected by the parser before it ever reached the model's content. Refresh it
-              // for anyone who never customised the template.
-              if (response.prompts?.reviseXmlPrompt?.isDefault !== false) {
-                response.prompts.reviseXmlPrompt = {
-                  content: DEFAULT_PROMPT_CONTENTS.reviseXmlPrompt,
-                  isDefault: true,
-                  label: 'Revise Session (XML Mode)',
-                };
-              }
-
-              return response;
-            },
-          },
-          {
-            from: 'F_1.12',
-            to: 'F_1.13',
-            action(previous: ExtensionSettings): ExtensionSettings {
-              // Upstream shipped this as its own F_1.9 -> F_1.10 step. Fork installs are already
-              // past F_1.10, so it is re-applied here to pick up the character-definition and
-              // world-info template fixes (notably `this.data.alternate_greetings`).
-              const response = structuredClone(previous) as ExtensionSettings;
-
-              if (previous.prompts?.charDefinitions?.isDefault) {
-                response.prompts.charDefinitions.content = DEFAULT_CHAR_CARD_DEFINITION_TEMPLATE;
-              }
-              if (previous.prompts?.worldInfoCharDefinition?.isDefault) {
-                response.prompts.worldInfoCharDefinition.content = DEFAULT_WORLD_INFO_CHARACTER_DEFINITION;
-              }
-
-              return response;
-            },
-          },
+          // Every install at F_1.9 or later lands on F_2.00 in one idempotent step. See
+          // LEGACY_FORMAT_VERSIONS above for why the original one-step-at-a-time chain could not work.
+          ...LEGACY_FORMAT_VERSIONS.map((from) => ({ from, to: FORMAT_VERSION, action: catchUpToLatest })),
         ],
       })
       .then((_result) => {
