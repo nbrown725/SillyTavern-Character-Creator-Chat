@@ -90,7 +90,7 @@ src/
 │   ├── ExtractReviewPopup.tsx # Per-field accept/reject review of a brainstorm card extraction
 │   ├── CurrentStatePopup.tsx  # Read-only view of current character card state
 │   ├── MarkdownContent.tsx    # Markdown rendering with syntax highlighting (showdown, DOMPurify, hljs)
-│   └── Settings.tsx           # Extension settings panel (React component)
+│   └── Settings.tsx           # Settings panel; ContextTemplateEditor renders both context templates
 ├── styles/
 │   └── main.scss              # Styles using ST CSS variables (--SmartTheme*)
 └── test/
@@ -142,6 +142,8 @@ The extension has 16 configurable Handlebars prompt templates and context contro
 - `contextToSend` — toggles for char card, world info, persona, messages, existing fields
 - `prompts.*` — customizable system/task/format prompts (each has `isDefault` flag for migration safety)
 - `promptPresets` / `mainContextTemplatePresets` — user-defined prompt ordering presets
+- `brainstormContextTemplatePresets` — the same shape, ordering the opening context of brainstorm
+  sessions independently of field generation
 
 ### Brainstorm Sessions
 
@@ -186,8 +188,15 @@ Multi-turn freeform chat for developing character concepts. The "Brainstorm" tab
 
 **Prompt construction** (`brainstorm-prompt-builder.ts`):
 - `buildInitialBrainstormMessages()` compiles Handlebars templates with context data
-- Context blocks ordered by `mainContextTemplatePreset` setting
-- Respects `contextToSend` toggles (char card, world info, persona, messages, existing fields)
+- Context blocks ordered by `brainstormContextTemplatePreset` — a template **separate from**
+  `mainContextTemplatePreset`. The main template is shared by field generation and revise sessions,
+  neither of which filters exhaustively, so a brainstorm-only prompt placed there would leak into
+  Generate and Revise. The separate list also means `brainstormSystemPrompt` is an ordinary movable
+  entry rather than a hardcoded first message
+- Only two entries are ignored whatever the template says: `chatHistory` (no placeholder mechanism
+  exists, so "Messages to Include" has no effect on brainstorm) and `brainstormExtractPrompt`
+  (appended after the transcript by the extraction call, not part of the opening context)
+- Respects `contextToSend` toggles (char card, world info, persona, existing fields)
 - All initial messages flagged with `isInitial: true`
 
 ### Revise Sessions

@@ -93,7 +93,7 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({
         const newInitialMsgs = await buildInitialBrainstormMessages(
           sessionForContextRef.current.fields,
           sessionForContextRef.current.draftFields,
-          currentSettings.mainContextTemplatePreset,
+          currentSettings.brainstormContextTemplatePreset,
           contextToSend,
           sessionForContextRef.current,
         );

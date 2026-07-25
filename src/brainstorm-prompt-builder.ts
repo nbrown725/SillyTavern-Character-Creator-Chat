@@ -8,14 +8,19 @@ import { WIEntry } from 'sillytavern-utils-lib/types/world-info';
 export async function buildInitialBrainstormMessages(
   fields: Session['fields'],
   draftFields: Session['draftFields'],
-  mainContextTemplatePreset: string,
+  brainstormContextTemplatePreset: string,
   contextToSend: ExtensionSettings['contextToSend'],
   sessionForContext: Pick<Session, 'selectedCharacterIndexes' | 'selectedWorldNames'>,
 ): Promise<BrainstormMessage[]> {
   const settings = settingsManager.getSettings();
-  const preset = settings.mainContextTemplatePresets[mainContextTemplatePreset];
+  // Brainstorm has its own template, separate from the one driving field generation and revise
+  // sessions, so brainstorm-only prompts can be ordered here without leaking into those flows.
+  // Presets can be renamed or deleted out from under the selection; fall back rather than throw.
+  const preset =
+    settings.brainstormContextTemplatePresets?.[brainstormContextTemplatePreset] ??
+    settings.brainstormContextTemplatePresets?.['default'];
   if (!preset) {
-    throw new Error(`Main context template preset "${mainContextTemplatePreset}" not found.`);
+    throw new Error(`Brainstorm context template preset "${brainstormContextTemplatePreset}" not found.`);
   }
 
   const initialMessages: BrainstormMessage[] = [];
@@ -69,22 +74,8 @@ export async function buildInitialBrainstormMessages(
     templateData['lorebooks'] = lorebooksData;
   }
 
-  // Always inject the brainstorm system prompt first
-  const brainstormPrompt = settings.prompts.brainstormSystemPrompt;
-  if (brainstormPrompt?.content) {
-    let content = Handlebars.compile(brainstormPrompt.content, { noEscape: true })(templateData);
-    content = globalContext.substituteParams(content);
-    if (content.trim()) {
-      initialMessages.push({
-        id: `im-${initialMessages.length}`,
-        role: 'system',
-        content: content.trim(),
-        isInitial: true,
-      });
-    }
-  }
-
-  // Then iterate through the preset's prompts for context
+  // The preset drives the whole opening context, brainstormSystemPrompt included — its position
+  // and role are whatever the user ordered them to be.
   for (const block of preset.prompts) {
     if (!block.enabled) continue;
 
@@ -95,21 +86,14 @@ export async function buildInitialBrainstormMessages(
     if (block.promptName === 'existingFieldDefinitions' && !contextToSend.existingFields) continue;
     if (block.promptName === 'personaDescription' && !contextToSend.persona) continue;
 
-    // Brainstorm sessions have no chat-history placeholder mechanism, so it is always skipped.
+    // Only two prompts cannot work here, whatever the template says. Everything else in the list
+    // is the user's choice, since this template is brainstorm's alone.
+    //
+    // Brainstorm sessions have no chat-history placeholder mechanism, so chatHistory is skipped;
+    // "Messages to Include" therefore has no effect on brainstorm sessions.
     if (block.promptName === 'chatHistory') continue;
-
-    // Skip generation-specific prompts that don't apply to brainstorming
-    const irrelevantPrompts = [
-      'taskDescription',
-      'outputFormatInstructions',
-      'reviseTaskDescription',
-      'reviseJsonPrompt',
-      'reviseXmlPrompt',
-      'brainstormSystemPrompt',
-      // Appended after the transcript by the extraction call, never part of the opening context.
-      'brainstormExtractPrompt',
-    ];
-    if (irrelevantPrompts.includes(block.promptName)) continue;
+    // Appended after the transcript by the extraction call, never part of the opening context.
+    if (block.promptName === 'brainstormExtractPrompt') continue;
 
     const promptSetting = settings.prompts[block.promptName];
     if (!promptSetting || promptSetting.content.includes('{{activeFormatInstructions}}')) continue;

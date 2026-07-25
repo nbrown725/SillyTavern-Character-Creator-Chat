@@ -40,8 +40,8 @@ export const VERSION = '0.3.0';
 // This fork and upstream both shipped a *different* F_1.9 -> F_1.10 step; the fork's numbering
 // (brainstorm prompt at F_1.10, thinking level at F_1.11, XML revise prompt at F_1.12, upstream's
 // template fixes re-applied at F_1.13, extraction prompt at F_1.14) is preserved inside
-// `catchUpFromF19`, which applies all of it at once.
-export const FORMAT_VERSION = 'F_2.00';
+// `catchUpToLatest`, which applies all of it at once.
+export const FORMAT_VERSION = 'F_2.01';
 
 export type ThinkingLevel = 'default' | 'min' | 'low' | 'medium' | 'high' | 'max';
 
@@ -140,6 +140,11 @@ export interface ExtensionSettings {
 
   mainContextTemplatePreset: string;
   mainContextTemplatePresets: Record<string, MainContextTemplatePreset>;
+
+  // Brainstorm sessions order their context independently of field generation, so that
+  // brainstorm-only prompts can sit in the list without leaking into Generate or Revise.
+  brainstormContextTemplatePreset: string;
+  brainstormContextTemplatePresets: Record<string, MainContextTemplatePreset>;
 
   // World Info
   showSaveAsWorldInfoEntry: {
@@ -373,6 +378,44 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
     },
   },
 
+  brainstormContextTemplatePreset: 'default',
+  brainstormContextTemplatePresets: {
+    default: {
+      prompts: [
+        {
+          enabled: true,
+          promptName: 'brainstormSystemPrompt',
+          role: 'system',
+        },
+        {
+          enabled: true,
+          promptName: 'stDescription',
+          role: 'system',
+        },
+        {
+          enabled: true,
+          promptName: 'charDefinitions',
+          role: 'system',
+        },
+        {
+          enabled: true,
+          promptName: 'lorebookDefinitions',
+          role: 'system',
+        },
+        {
+          enabled: true,
+          promptName: 'existingFieldDefinitions',
+          role: 'system',
+        },
+        {
+          enabled: true,
+          promptName: 'personaDescription',
+          role: 'system',
+        },
+      ],
+    },
+  },
+
   // World Info
   showSaveAsWorldInfoEntry: {
     show: false,
@@ -401,7 +444,7 @@ export const settingsManager = new ExtensionSettingsManager<ExtensionSettings>(K
  * the rest were only ever reachable by a fresh install that happened to start there, or by the
  * wildcard rewind. All of them migrate straight to FORMAT_VERSION.
  */
-export const POST_F19_VERSIONS = ['F_1.9', 'F_1.10', 'F_1.11', 'F_1.12', 'F_1.13', 'F_1.14'];
+export const LEGACY_FORMAT_VERSIONS = ['F_1.9', 'F_1.10', 'F_1.11', 'F_1.12', 'F_1.13', 'F_1.14', 'F_2.00'];
 
 /**
  * Everything the F_1.10 -> F_1.14 steps used to do, collapsed into one idempotent action.
@@ -410,7 +453,7 @@ export const POST_F19_VERSIONS = ['F_1.9', 'F_1.10', 'F_1.11', 'F_1.12', 'F_1.13
  * rebuilt `prompts` from whatever the defaults were at the time, so the starting state varies.
  * Each change is therefore guarded rather than assumed.
  */
-export const catchUpFromF19 = (previous: ExtensionSettings): ExtensionSettings => {
+export const catchUpToLatest = (previous: ExtensionSettings): ExtensionSettings => {
   const response = structuredClone(previous) as ExtensionSettings;
   response.prompts = response.prompts ?? ({} as ExtensionSettings['prompts']);
 
@@ -443,6 +486,12 @@ export const catchUpFromF19 = (previous: ExtensionSettings): ExtensionSettings =
   if (response.prompts.worldInfoCharDefinition.isDefault) {
     response.prompts.worldInfoCharDefinition.content = DEFAULT_WORLD_INFO_CHARACTER_DEFINITION;
   }
+
+  // F_2.01 — brainstorm sessions get their own context template.
+  if (!response.brainstormContextTemplatePresets?.default) {
+    response.brainstormContextTemplatePresets = structuredClone(DEFAULT_SETTINGS.brainstormContextTemplatePresets);
+  }
+  response.brainstormContextTemplatePreset = response.brainstormContextTemplatePreset ?? 'default';
 
   return response;
 };
@@ -766,8 +815,8 @@ export async function initializeSettings(): Promise<void> {
             },
           },
           // Every install at F_1.9 or later lands on F_2.00 in one idempotent step. See
-          // POST_F19_VERSIONS above for why the original one-step-at-a-time chain could not work.
-          ...POST_F19_VERSIONS.map((from) => ({ from, to: FORMAT_VERSION, action: catchUpFromF19 })),
+          // LEGACY_FORMAT_VERSIONS above for why the original one-step-at-a-time chain could not work.
+          ...LEGACY_FORMAT_VERSIONS.map((from) => ({ from, to: FORMAT_VERSION, action: catchUpToLatest })),
         ],
       })
       .then((_result) => {

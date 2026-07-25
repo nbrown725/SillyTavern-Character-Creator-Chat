@@ -15,8 +15,8 @@ vi.mock('../generate.js', () => ({ globalContext: {} }));
 
 const {
   FORMAT_VERSION,
-  POST_F19_VERSIONS,
-  catchUpFromF19,
+  LEGACY_FORMAT_VERSIONS,
+  catchUpToLatest,
   DEFAULT_SETTINGS,
   DEFAULT_PROMPT_CONTENTS,
   SYSTEM_PROMPT_KEYS,
@@ -31,7 +31,7 @@ describe('format version ordering', () => {
   // These assertions are the whole reason the scheme moved to zero-padded F_2.xx.
 
   test('the current version sorts above every version it must migrate from', () => {
-    for (const stranded of POST_F19_VERSIONS) {
+    for (const stranded of LEGACY_FORMAT_VERSIONS) {
       expect(FORMAT_VERSION > stranded, `${FORMAT_VERSION} must sort above ${stranded}`).toBe(true);
     }
   });
@@ -47,9 +47,17 @@ describe('format version ordering', () => {
   });
 
   test('is zero-padded so the next versions keep sorting correctly', () => {
-    expect(FORMAT_VERSION).toMatch(/^F_\d+\.\d{2}$/);
-    expect('F_2.10' > FORMAT_VERSION).toBe(true);
-    expect('F_2.01' > FORMAT_VERSION).toBe(true);
+    const parts = FORMAT_VERSION.match(/^F_(\d+)\.(\d{2})$/);
+    expect(parts, `${FORMAT_VERSION} must stay zero-padded`).not.toBeNull();
+
+    const [, major, minor] = parts!;
+    const bump = (by: number) => `F_${major}.${String(Number(minor) + by).padStart(2, '0')}`;
+
+    // The padding is what keeps the *next* bumps sorting above this one — an unpadded
+    // 'F_2.1' would sort below 'F_2.01' and strand everyone all over again.
+    expect(bump(1) > FORMAT_VERSION).toBe(true);
+    expect(bump(10) > FORMAT_VERSION).toBe(true);
+    expect(bump(10) > bump(1)).toBe(true);
   });
 });
 
@@ -64,9 +72,9 @@ const strandedSettings = () => {
   return settings;
 };
 
-describe('catchUpFromF19', () => {
+describe('catchUpToLatest', () => {
   test('restores every built-in prompt the stranded install never received', () => {
-    const migrated = catchUpFromF19(strandedSettings());
+    const migrated = catchUpToLatest(strandedSettings());
 
     expect(migrated.prompts.brainstormSystemPrompt.content).toBe(DEFAULT_PROMPT_CONTENTS.brainstormSystemPrompt);
     expect(migrated.prompts.brainstormExtractPrompt.content).toBe(DEFAULT_PROMPT_CONTENTS.brainstormExtractPrompt);
@@ -77,21 +85,21 @@ describe('catchUpFromF19', () => {
     const bare = strandedSettings();
     bare.prompts = {} as typeof bare.prompts;
 
-    const migrated = catchUpFromF19(bare);
+    const migrated = catchUpToLatest(bare);
     for (const key of SYSTEM_PROMPT_KEYS) {
       expect(migrated.prompts[key], `${key} should exist`).toBeDefined();
     }
   });
 
   test('backfills thinkingLevel', () => {
-    expect(catchUpFromF19(strandedSettings()).thinkingLevel).toBe('default');
+    expect(catchUpToLatest(strandedSettings()).thinkingLevel).toBe('default');
   });
 
   test('refreshes templates that are still at their defaults', () => {
     const settings = strandedSettings();
     settings.prompts.charDefinitions = { content: 'stale', isDefault: true, label: 'Character Definition Template' };
 
-    expect(catchUpFromF19(settings).prompts.charDefinitions.content).toBe(DEFAULT_CHAR_CARD_DEFINITION_TEMPLATE);
+    expect(catchUpToLatest(settings).prompts.charDefinitions.content).toBe(DEFAULT_CHAR_CARD_DEFINITION_TEMPLATE);
   });
 
   test('does not clobber prompts the user customised', () => {
@@ -99,19 +107,42 @@ describe('catchUpFromF19', () => {
     settings.prompts.charDefinitions = { content: 'mine', isDefault: false, label: 'Character Definition Template' };
     settings.prompts.reviseXmlPrompt = { content: 'also mine', isDefault: false, label: 'Revise Session (XML Mode)' };
 
-    const migrated = catchUpFromF19(settings);
+    const migrated = catchUpToLatest(settings);
     expect(migrated.prompts.charDefinitions.content).toBe('mine');
     expect(migrated.prompts.reviseXmlPrompt.content).toBe('also mine');
   });
 
   test('is idempotent — a rewound install may have received part of it already', () => {
-    const once = catchUpFromF19(strandedSettings());
-    expect(catchUpFromF19(once)).toEqual(once);
+    const once = catchUpToLatest(strandedSettings());
+    expect(catchUpToLatest(once)).toEqual(once);
+  });
+
+  test('gives brainstorm its own context template', () => {
+    const settings = strandedSettings();
+    delete (settings as Partial<typeof settings>).brainstormContextTemplatePresets;
+    delete (settings as Partial<typeof settings>).brainstormContextTemplatePreset;
+
+    const migrated = catchUpToLatest(settings);
+    expect(migrated.brainstormContextTemplatePreset).toBe('default');
+    expect(migrated.brainstormContextTemplatePresets.default.prompts.map((p) => p.promptName)).toContain(
+      'brainstormSystemPrompt',
+    );
+  });
+
+  test('leaves a customised brainstorm template alone', () => {
+    const settings = strandedSettings();
+    settings.brainstormContextTemplatePresets = {
+      default: { prompts: [{ enabled: false, promptName: 'personaDescription', role: 'user' }] },
+    };
+
+    expect(catchUpToLatest(settings).brainstormContextTemplatePresets.default.prompts).toEqual([
+      { enabled: false, promptName: 'personaDescription', role: 'user' },
+    ]);
   });
 
   test('does not mutate the settings it is given', () => {
     const settings = strandedSettings();
-    catchUpFromF19(settings);
+    catchUpToLatest(settings);
     expect(settings.prompts.brainstormExtractPrompt).toBeUndefined();
   });
 });

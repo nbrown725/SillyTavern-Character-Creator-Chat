@@ -118,7 +118,7 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({
       const initialMsgs = await buildInitialBrainstormMessages(
         sessionForContext.fields,
         sessionForContext.draftFields,
-        currentSettings.mainContextTemplatePreset,
+        currentSettings.brainstormContextTemplatePreset,
         contextToSend,
         sessionForContext,
       );

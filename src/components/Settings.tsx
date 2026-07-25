@@ -25,6 +25,78 @@ import { useForceUpdate } from '../hooks/useForceUpdate.js';
 
 const globalContext = SillyTavern.getContext();
 
+interface ContextTemplateEditorProps {
+  title: string;
+  restoreTitle: string;
+  presetName: string;
+  presets: Record<string, MainContextTemplatePreset>;
+  prompts: ExtensionSettings['prompts'];
+  onPresetNameChange: (name?: string) => void;
+  onPresetsChange: (items: PresetItem[]) => void;
+  onListChange: (items: SortableListItemData[]) => void;
+  onRestoreDefault: () => void;
+}
+
+/** The ordered prompt list UI, shared by the generation and brainstorm templates. */
+const ContextTemplateEditor: FC<ContextTemplateEditorProps> = ({
+  title,
+  restoreTitle,
+  presetName,
+  presets,
+  prompts,
+  onPresetNameChange,
+  onPresetsChange,
+  onListChange,
+  onRestoreDefault,
+}) => {
+  const presetItems: PresetItem[] = Object.keys(presets).map((key) => ({ value: key, label: key }));
+  const listItems: SortableListItemData[] = (presets[presetName]?.prompts ?? []).map((prompt) => {
+    const promptSetting = prompts[prompt.promptName];
+    return {
+      id: prompt.promptName,
+      label: promptSetting ? `${promptSetting.label} (${prompt.promptName})` : prompt.promptName,
+      enabled: prompt.enabled,
+      selectValue: prompt.role,
+      selectOptions: [
+        { value: 'user', label: 'User' },
+        { value: 'assistant', label: 'Assistant' },
+        { value: 'system', label: 'System' },
+      ],
+    };
+  });
+
+  return (
+    <div style={{ marginTop: '10px' }}>
+      <div className="title_restorable">
+        <span>{title}</span>
+        <STButton className="fa-solid fa-undo" title={restoreTitle} onClick={onRestoreDefault} />
+      </div>
+      <STPresetSelect
+        label="Template"
+        items={presetItems}
+        value={presetName}
+        readOnlyValues={['default']}
+        onChange={onPresetNameChange}
+        onItemsChange={onPresetsChange}
+        enableCreate
+        enableRename
+        enableDelete
+      />
+      <div style={{ marginTop: '5px' }}>
+        <STSortableList items={listItems} onItemsChange={onListChange} showSelectInput showToggleButton />
+      </div>
+    </div>
+  );
+};
+
+/** The two context templates, keyed by the settings fields that back each one. */
+const TEMPLATE_KINDS = {
+  main: { presetKey: 'mainContextTemplatePreset', presetsKey: 'mainContextTemplatePresets' },
+  brainstorm: { presetKey: 'brainstormContextTemplatePreset', presetsKey: 'brainstormContextTemplatePresets' },
+} as const;
+
+type TemplateKind = keyof typeof TEMPLATE_KINDS;
+
 export const CharacterCreatorSettings: FC = () => {
   // --- State Management ---
   const forceUpdate = useForceUpdate();
@@ -42,11 +114,6 @@ export const CharacterCreatorSettings: FC = () => {
   );
 
   // --- Derived Data for UI (Memoized for performance) ---
-  const mainContextPresetItems = useMemo(
-    (): PresetItem[] => Object.keys(settings.mainContextTemplatePresets).map((key) => ({ value: key, label: key })),
-    [settings.mainContextTemplatePresets],
-  );
-
   const systemPromptItems = useMemo(
     (): PresetItem[] =>
       Object.entries(settings.prompts).map(([key, prompt]) => ({
@@ -56,85 +123,51 @@ export const CharacterCreatorSettings: FC = () => {
     [settings.prompts],
   );
 
-  const mainContextListItems = useMemo((): SortableListItemData[] => {
-    const preset = settings.mainContextTemplatePresets[settings.mainContextTemplatePreset];
-    if (!preset) return [];
-    return preset.prompts.map((prompt) => {
-      const promptSetting = settings.prompts[prompt.promptName];
-      const label = promptSetting ? `${promptSetting.label} (${prompt.promptName})` : prompt.promptName;
-      return {
-        id: prompt.promptName,
-        label,
-        enabled: prompt.enabled,
-        selectValue: prompt.role,
-        selectOptions: [
-          { value: 'user', label: 'User' },
-          { value: 'assistant', label: 'Assistant' },
-          { value: 'system', label: 'System' },
-        ],
-      };
-    });
-  }, [settings.mainContextTemplatePreset, settings.mainContextTemplatePresets, settings.prompts]);
+  // --- Handlers for the context templates ---
+  // Both templates are the same shape; the kind only selects which pair of settings fields to edit.
+  const templateHandlers = (kind: TemplateKind) => {
+    const { presetKey, presetsKey } = TEMPLATE_KINDS[kind];
+    return {
+      onPresetNameChange: (newValue?: string) =>
+        updateAndRefresh((s) => {
+          s[presetKey] = newValue ?? 'default';
+        }),
 
-  // --- Handlers for Main Context Template ---
-  const handleMainContextPresetChange = (newValue?: string) => {
-    updateAndRefresh((s) => {
-      s.mainContextTemplatePreset = newValue ?? 'default';
-    });
-  };
+      onPresetsChange: (newItems: PresetItem[]) =>
+        updateAndRefresh((s) => {
+          const newPresets: Record<string, MainContextTemplatePreset> = {};
+          newItems.forEach((item) => {
+            newPresets[item.value] =
+              s[presetsKey][item.value] ?? structuredClone(s[presetsKey][s[presetKey]] ?? s[presetsKey]['default']);
+          });
+          s[presetsKey] = newPresets;
+        }),
 
-  const handleMainContextPresetsChange = (newItems: PresetItem[]) => {
-    updateAndRefresh((s) => {
-      const newPresets: Record<string, MainContextTemplatePreset> = {};
-      newItems.forEach((item) => {
-        newPresets[item.value] =
-          s.mainContextTemplatePresets[item.value] ??
-          structuredClone(
-            s.mainContextTemplatePresets[s.mainContextTemplatePreset] ?? s.mainContextTemplatePresets['default'],
-          );
-      });
-      s.mainContextTemplatePresets = newPresets;
-    });
-  };
+      onListChange: (newListItems: SortableListItemData[]) =>
+        updateAndRefresh((s) => {
+          const prompts: MainContextPromptBlock[] = newListItems.map((item) => ({
+            promptName: item.id,
+            enabled: item.enabled,
+            role: (item.selectValue as MessageRole) ?? 'user',
+          }));
+          s[presetsKey] = {
+            ...s[presetsKey],
+            [s[presetKey]]: { ...s[presetsKey][s[presetKey]], prompts },
+          };
+        }),
 
-  const handleMainContextListChange = (newListItems: SortableListItemData[]) => {
-    updateAndRefresh((s) => {
-      const newPrompts: MainContextPromptBlock[] = newListItems.map((item) => ({
-        promptName: item.id,
-        enabled: item.enabled,
-        role: (item.selectValue as MessageRole) ?? 'user',
-      }));
-
-      // Create a new preset object with the updated prompts
-      const updatedPreset = {
-        ...s.mainContextTemplatePresets[s.mainContextTemplatePreset],
-        prompts: newPrompts,
-      };
-
-      // Create a new presets object with the updated preset
-      const updatedPresets = {
-        ...s.mainContextTemplatePresets,
-        [s.mainContextTemplatePreset]: updatedPreset,
-      };
-
-      // Assign the new presets object back to the settings
-      s.mainContextTemplatePresets = updatedPresets;
-    });
-  };
-
-  const handleRestoreMainContextDefault = async () => {
-    const confirm = await globalContext.Popup.show.confirm('Restore default', 'Are you sure?');
-    if (!confirm) return;
-    updateAndRefresh((s) => {
-      // Create a new presets object with the restored default preset
-      s.mainContextTemplatePresets = {
-        ...s.mainContextTemplatePresets,
-        default: structuredClone(DEFAULT_SETTINGS.mainContextTemplatePresets['default']),
-      };
-
-      if (s.mainContextTemplatePreset === 'default') forceUpdate();
-      else s.mainContextTemplatePreset = 'default';
-    });
+      onRestoreDefault: async () => {
+        const confirm = await globalContext.Popup.show.confirm('Restore default', 'Are you sure?');
+        if (!confirm) return;
+        updateAndRefresh((s) => {
+          s[presetsKey] = {
+            ...s[presetsKey],
+            default: structuredClone(DEFAULT_SETTINGS[presetsKey]['default']),
+          };
+          s[presetKey] = 'default';
+        });
+      },
+    };
   };
 
   // --- Handlers for Prompt Templates ---
@@ -145,9 +178,11 @@ export const CharacterCreatorSettings: FC = () => {
       const deletedKeys = oldKeys.filter((key) => !newKeys.includes(key));
 
       deletedKeys.forEach((key) => {
-        Object.values(s.mainContextTemplatePresets).forEach((preset) => {
-          preset.prompts = preset.prompts.filter((p) => p.promptName !== key);
-        });
+        [...Object.values(s.mainContextTemplatePresets), ...Object.values(s.brainstormContextTemplatePresets)].forEach(
+          (preset) => {
+            preset.prompts = preset.prompts.filter((p) => p.promptName !== key);
+          },
+        );
       });
 
       const newPrompts: Record<string, PromptSetting> = {};
@@ -177,18 +212,19 @@ export const CharacterCreatorSettings: FC = () => {
         [variableName]: { content: s.prompts[selectedSystemPrompt]?.content ?? '', isDefault: false, label: value },
       };
 
-      // Create a new mainContextTemplatePresets object
-      const newPresets = Object.fromEntries(
-        Object.entries(s.mainContextTemplatePresets).map(([presetName, preset]) => [
-          presetName,
-          {
-            ...preset,
-            prompts: [...preset.prompts, { enabled: true, promptName: variableName, role: 'user' }],
-          },
-        ]),
-      );
-      // @ts-ignore
-      s.mainContextTemplatePresets = newPresets;
+      // A newly created prompt becomes available in both context templates.
+      const appendToPresets = (presets: Record<string, MainContextTemplatePreset>) =>
+        Object.fromEntries(
+          Object.entries(presets).map(([presetName, preset]) => [
+            presetName,
+            {
+              ...preset,
+              prompts: [...preset.prompts, { enabled: true, promptName: variableName, role: 'user' as MessageRole }],
+            },
+          ]),
+        );
+      s.mainContextTemplatePresets = appendToPresets(s.mainContextTemplatePresets);
+      s.brainstormContextTemplatePresets = appendToPresets(s.brainstormContextTemplatePresets);
     });
 
     setSelectedSystemPrompt(variableName);
@@ -215,17 +251,19 @@ export const CharacterCreatorSettings: FC = () => {
         [variableName]: { ...renamedPrompt, label: newValue },
       };
 
-      // Create new mainContextTemplatePresets object
-      const newPresets = Object.fromEntries(
-        Object.entries(s.mainContextTemplatePresets).map(([presetName, preset]) => [
-          presetName,
-          {
-            ...preset,
-            prompts: preset.prompts.map((p) => (p.promptName === oldValue ? { ...p, promptName: variableName } : p)),
-          },
-        ]),
-      );
-      s.mainContextTemplatePresets = newPresets;
+      // Renaming has to follow the prompt into both context templates.
+      const renameInPresets = (presets: Record<string, MainContextTemplatePreset>) =>
+        Object.fromEntries(
+          Object.entries(presets).map(([presetName, preset]) => [
+            presetName,
+            {
+              ...preset,
+              prompts: preset.prompts.map((p) => (p.promptName === oldValue ? { ...p, promptName: variableName } : p)),
+            },
+          ]),
+        );
+      s.mainContextTemplatePresets = renameInPresets(s.mainContextTemplatePresets);
+      s.brainstormContextTemplatePresets = renameInPresets(s.brainstormContextTemplatePresets);
     });
 
     setSelectedSystemPrompt(variableName);
@@ -285,35 +323,25 @@ export const CharacterCreatorSettings: FC = () => {
 
   return (
     <div className="charCreator_settings">
-      <div style={{ marginTop: '10px' }}>
-        <div className="title_restorable">
-          <span>Main Context Template</span>
-          <STButton
-            className="fa-solid fa-undo"
-            title="Restore main context template to default"
-            onClick={handleRestoreMainContextDefault}
-          />
-        </div>
-        <STPresetSelect
-          label="Template"
-          items={mainContextPresetItems}
-          value={settings.mainContextTemplatePreset}
-          readOnlyValues={['default']}
-          onChange={handleMainContextPresetChange}
-          onItemsChange={handleMainContextPresetsChange}
-          enableCreate
-          enableRename
-          enableDelete
-        />
-        <div style={{ marginTop: '5px' }}>
-          <STSortableList
-            items={mainContextListItems}
-            onItemsChange={handleMainContextListChange}
-            showSelectInput
-            showToggleButton
-          />
-        </div>
-      </div>
+      <ContextTemplateEditor
+        title="Main Context Template"
+        restoreTitle="Restore main context template to default"
+        presetName={settings.mainContextTemplatePreset}
+        presets={settings.mainContextTemplatePresets}
+        prompts={settings.prompts}
+        {...templateHandlers('main')}
+      />
+
+      <hr style={{ margin: '10px 0' }} />
+
+      <ContextTemplateEditor
+        title="Brainstorm Context Template"
+        restoreTitle="Restore brainstorm context template to default"
+        presetName={settings.brainstormContextTemplatePreset}
+        presets={settings.brainstormContextTemplatePresets}
+        prompts={settings.prompts}
+        {...templateHandlers('brainstorm')}
+      />
 
       <hr style={{ margin: '10px 0' }} />
 
