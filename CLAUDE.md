@@ -62,6 +62,7 @@ src/
 ├── parsers.ts                 # Response parsing: XML, JSON, plain text with graceful fallback
 ├── browser-storage.ts         # Single persistence layer: localforage/IndexedDB + localStorage migration
 ├── handlebars-helpers.ts      # Shared Handlebars helpers (add, join, is_not_empty, indent, json, xmlEscape)
+├── prompt-macros.ts           # Keeps {{user}}/{{char}} intact through Handlebars + substituteParams
 ├── world-info-entries.ts      # Reads world info entries, optionally including disabled ones
 ├── world-info-export.ts       # Builds the character object passed to the WI entry template
 ├── world-info-selection.ts    # Dropdown items for world info, retaining renamed/missing selections
@@ -91,6 +92,8 @@ src/
 │   └── main.scss              # Styles using ST CSS variables (--SmartTheme*)
 └── test/
     ├── parser.test.ts         # Vitest unit tests for response parsers
+    ├── prompt-macros.test.ts  # Macro preservation across the three prompt builders
+    ├── settings-migration.test.ts # Format-version ordering and the catch-up migration
     └── image-api-messages.test.ts # Tests for image API message handling
 ```
 

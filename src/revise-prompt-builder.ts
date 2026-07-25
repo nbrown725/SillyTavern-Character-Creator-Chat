@@ -7,6 +7,7 @@ import { Character } from 'sillytavern-utils-lib/types';
 import { WIEntry } from 'sillytavern-utils-lib/types/world-info';
 import { selected_group, this_chid } from 'sillytavern-utils-lib/config';
 import { getWorldInfoEntries } from './world-info-entries.js';
+import { applyMacroLiterals, substituteParamsPreservingMacros } from './prompt-macros.js';
 
 export async function buildInitialReviseMessages(
   initialState: CharacterState,
@@ -106,10 +107,11 @@ export async function buildInitialReviseMessages(
       continue;
     }
 
-    let content = '';
-    content = Handlebars.compile(promptSetting.content, { noEscape: true })(templateData);
+    let content = Handlebars.compile(promptSetting.content, { noEscape: true })(
+      applyMacroLiterals(templateData, block.promptName),
+    );
 
-    content = globalContext.substituteParams(content);
+    content = substituteParamsPreservingMacros(content, (value) => globalContext.substituteParams(value));
 
     if (content.trim()) {
       initialMessages.push({

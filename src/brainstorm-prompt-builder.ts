@@ -4,6 +4,7 @@ import { ExtensionSettings, settingsManager } from './settings.js';
 import { Session, globalContext } from './generate.js';
 import { Character } from 'sillytavern-utils-lib/types';
 import { WIEntry } from 'sillytavern-utils-lib/types/world-info';
+import { applyMacroLiterals, substituteParamsPreservingMacros } from './prompt-macros.js';
 
 export async function buildInitialBrainstormMessages(
   fields: Session['fields'],
@@ -72,8 +73,10 @@ export async function buildInitialBrainstormMessages(
   // Always inject the brainstorm system prompt first
   const brainstormPrompt = settings.prompts.brainstormSystemPrompt;
   if (brainstormPrompt?.content) {
-    let content = Handlebars.compile(brainstormPrompt.content, { noEscape: true })(templateData);
-    content = globalContext.substituteParams(content);
+    let content = Handlebars.compile(brainstormPrompt.content, { noEscape: true })(
+      applyMacroLiterals(templateData, 'brainstormSystemPrompt'),
+    );
+    content = substituteParamsPreservingMacros(content, (value) => globalContext.substituteParams(value));
     if (content.trim()) {
       initialMessages.push({
         id: `im-${initialMessages.length}`,
@@ -112,8 +115,10 @@ export async function buildInitialBrainstormMessages(
     const promptSetting = settings.prompts[block.promptName];
     if (!promptSetting || promptSetting.content.includes('{{activeFormatInstructions}}')) continue;
 
-    let content = Handlebars.compile(promptSetting.content, { noEscape: true })(templateData);
-    content = globalContext.substituteParams(content);
+    let content = Handlebars.compile(promptSetting.content, { noEscape: true })(
+      applyMacroLiterals(templateData, block.promptName),
+    );
+    content = substituteParamsPreservingMacros(content, (value) => globalContext.substituteParams(value));
 
     if (content.trim()) {
       initialMessages.push({

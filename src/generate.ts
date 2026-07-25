@@ -8,6 +8,7 @@ import { ExtensionSettings, MessageRole, OutputFormat, settingsManager, getThink
 
 import * as Handlebars from 'handlebars';
 import './handlebars-helpers.js';
+import { applyMacroLiterals, substituteParamsPreservingMacros } from './prompt-macros.js';
 
 export const globalContext = SillyTavern.getContext();
 
@@ -225,11 +226,7 @@ export async function runCharacterFieldGeneration({
         continue;
       }
 
-      let newTemplateData = structuredClone(templateData);
-      if (mainContext.promptName === 'stDescription') {
-        newTemplateData['char'] = '{{char}}';
-        newTemplateData['user'] = '{{user}}';
-      }
+      const newTemplateData = applyMacroLiterals(structuredClone(templateData), mainContext.promptName);
 
       const prompt = promptSettings[mainContext.promptName];
       if (!prompt) {
@@ -239,11 +236,9 @@ export async function runCharacterFieldGeneration({
         role: mainContext.role,
         content: Handlebars.compile(prompt.content, { noEscape: true })(newTemplateData),
       };
-      message.content = message.content.replaceAll('{{user}}', '[[[crec_veryUniqueUserPlaceHolder]]]');
-      message.content = message.content.replaceAll('{{char}}', '[[[crec_veryUniqueCharPlaceHolder]]]');
-      message.content = globalContext.substituteParams(message.content);
-      message.content = message.content.replaceAll('[[[crec_veryUniqueUserPlaceHolder]]]', '{{user}}');
-      message.content = message.content.replaceAll('[[[crec_veryUniqueCharPlaceHolder]]]', '{{char}}');
+      message.content = substituteParamsPreservingMacros(message.content, (value) =>
+        globalContext.substituteParams(value),
+      );
       if (message.content) {
         messages.push(message);
       }
