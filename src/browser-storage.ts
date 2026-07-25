@@ -1,8 +1,10 @@
 import type { Session } from './generate.js';
 import type { ReviseSession } from './revise-types.js';
+import type { BrainstormSession } from './brainstorm-types.js';
 
 export const CHARACTER_SESSION_KEY = 'charCreator';
 export const REVISE_SESSIONS_KEY = 'charCreator_reviseSessions';
+export const BRAINSTORM_SESSIONS_KEY = 'charCreator_brainstormSessions';
 
 type LocalForageLike = {
   getItem<T>(key: string): Promise<T | null>;
@@ -99,3 +101,14 @@ export const saveReviseSessions = (
   sessions: ReviseSession[],
   storage: LocalForageLike = getStorage(),
 ): Promise<StorageSaveResult> => saveValue(REVISE_SESSIONS_KEY, sessions, storage);
+
+export const loadBrainstormSessions = (
+  storage: LocalForageLike = getStorage(),
+  legacyStorage: LegacyStorageLike = localStorage,
+): Promise<StorageLoadResult<BrainstormSession[]>> =>
+  loadWithLegacyMigration<BrainstormSession[]>(BRAINSTORM_SESSIONS_KEY, storage, legacyStorage);
+
+export const saveBrainstormSessions = (
+  sessions: BrainstormSession[],
+  storage: LocalForageLike = getStorage(),
+): Promise<StorageSaveResult> => saveValue(BRAINSTORM_SESSIONS_KEY, sessions, storage);

@@ -6,9 +6,9 @@ import { ExtensionSettings, settingsManager } from '../settings.js';
 import { buildInitialBrainstormMessages } from '../brainstorm-prompt-builder.js';
 import { st_echo } from 'sillytavern-utils-lib/config';
 import { Session } from '../generate.js';
+import { loadBrainstormSessions, saveBrainstormSessions } from '../browser-storage.js';
 
 const globalContext = SillyTavern.getContext();
-const BRAINSTORM_SESSIONS_KEY = 'charCreator_brainstormSessions';
 const MAX_UNSAVED_SESSIONS = 5;
 
 interface BrainstormSessionManagerProps {
@@ -22,17 +22,39 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({ co
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const sessionsFromStorage: BrainstormSession[] = JSON.parse(localStorage.getItem(BRAINSTORM_SESSIONS_KEY) || '[]');
-    const needsMigration = sessionsFromStorage.some((s) => s.saved === undefined);
-    const migratedSessions = sessionsFromStorage.map((s) => ({
-      ...s,
-      saved: s.saved ?? true,
-    }));
-    if (needsMigration) {
-      localStorage.setItem(BRAINSTORM_SESSIONS_KEY, JSON.stringify(migratedSessions));
-    }
-    setAllSessions(migratedSessions);
-    setIsLoading(false);
+    let isMounted = true;
+
+    loadBrainstormSessions()
+      .then(({ value, recovered }) => {
+        if (!isMounted) return;
+
+        // Sessions predating the saved/workspace split have no `saved` flag; treat them as saved
+        // so nothing silently lands in the workspace list and gets evicted by the cap.
+        const sessionsFromStorage = Array.isArray(value) ? value : [];
+        const needsMigration = sessionsFromStorage.some((s) => s.saved === undefined);
+        const migratedSessions = sessionsFromStorage.map((s) => ({ ...s, saved: s.saved ?? true }));
+
+        setAllSessions(migratedSessions);
+        if (needsMigration) {
+          saveBrainstormSessions(migratedSessions);
+        }
+        if (recovered) {
+          st_echo('warning', 'Some saved brainstorm sessions were invalid and have been reset.');
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load brainstorm sessions:', error);
+        st_echo('warning', 'Saved brainstorm sessions could not be loaded.');
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const savedSessions = useMemo(() => {
@@ -48,8 +70,13 @@ export const BrainstormSessionManager: FC<BrainstormSessionManagerProps> = ({ co
   }, [allSessions]);
 
   const saveAllSessions = (updatedSessions: BrainstormSession[]) => {
-    localStorage.setItem(BRAINSTORM_SESSIONS_KEY, JSON.stringify(updatedSessions));
     setAllSessions(updatedSessions);
+    saveBrainstormSessions(updatedSessions).then((result) => {
+      if (!result.persisted) {
+        console.warn('Failed to save brainstorm sessions:', result.error);
+        st_echo('warning', 'Brainstorm session history could not be saved. Browser storage may be full.');
+      }
+    });
   };
 
   const handleCreateNewSession = async () => {

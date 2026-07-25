@@ -1,14 +1,18 @@
 import { describe, expect, test } from 'vitest';
 import {
+  BRAINSTORM_SESSIONS_KEY,
   CHARACTER_SESSION_KEY,
+  loadBrainstormSessions,
   loadCharacterSession,
   loadReviseSessions,
   REVISE_SESSIONS_KEY,
+  saveBrainstormSessions,
   saveCharacterSession,
   saveReviseSessions,
 } from '../browser-storage.js';
 import type { Session } from '../generate.js';
 import type { ReviseSession } from '../revise-types.js';
+import type { BrainstormSession } from '../brainstorm-types.js';
 
 class MemoryLocalForage {
   private items = new Map<string, unknown>();
@@ -67,6 +71,22 @@ const createReviseSession = (): ReviseSession => ({
   promptEngineeringMode: 'native',
 });
 
+const createBrainstormSession = (): BrainstormSession => ({
+  id: 'bs-1',
+  name: 'Test brainstorm',
+  createdAt: '2026-06-09T00:00:00.000Z',
+  saved: true,
+  messages: [{ id: 'bm-1', role: 'assistant', content: 'Idea' }],
+  contextConfig: {
+    stDescription: true,
+    charCard: true,
+    existingFields: true,
+    worldInfo: true,
+    persona: true,
+    messages: { type: 'last', last: 10 },
+  },
+});
+
 describe('browser storage', () => {
   test('loads and saves Character Creator session through localforage', async () => {
     const storage = new MemoryLocalForage();
@@ -112,6 +132,42 @@ describe('browser storage', () => {
     expect(result.value).toEqual(sessions);
     expect(await storage.getItem(REVISE_SESSIONS_KEY)).toEqual(sessions);
     expect(legacyStorage.getItem(REVISE_SESSIONS_KEY)).toBeNull();
+  });
+
+  test('loads and saves brainstorm sessions through localforage', async () => {
+    const storage = new MemoryLocalForage();
+    const sessions = [createBrainstormSession()];
+
+    expect((await saveBrainstormSessions(sessions, storage)).persisted).toBe(true);
+    expect((await loadBrainstormSessions(storage, new MemoryLegacyStorage())).value).toEqual(sessions);
+  });
+
+  test('migrates legacy brainstorm sessions from localStorage', async () => {
+    const storage = new MemoryLocalForage();
+    const legacyStorage = new MemoryLegacyStorage();
+    const sessions = [createBrainstormSession()];
+
+    legacyStorage.setItem(BRAINSTORM_SESSIONS_KEY, JSON.stringify(sessions));
+
+    const result = await loadBrainstormSessions(storage, legacyStorage);
+
+    expect(result.migrated).toBe(true);
+    expect(result.value).toEqual(sessions);
+    expect(await storage.getItem(BRAINSTORM_SESSIONS_KEY)).toEqual(sessions);
+    expect(legacyStorage.getItem(BRAINSTORM_SESSIONS_KEY)).toBeNull();
+  });
+
+  test('reports recovery when stored brainstorm sessions are corrupt', async () => {
+    const storage = new MemoryLocalForage();
+    const legacyStorage = new MemoryLegacyStorage();
+
+    legacyStorage.setItem(BRAINSTORM_SESSIONS_KEY, '{not json');
+
+    const result = await loadBrainstormSessions(storage, legacyStorage);
+
+    expect(result.value).toBeNull();
+    expect(result.recovered).toBe(true);
+    expect(legacyStorage.getItem(BRAINSTORM_SESSIONS_KEY)).toBeNull();
   });
 
   test('does not throw when browser storage quota is exceeded', async () => {

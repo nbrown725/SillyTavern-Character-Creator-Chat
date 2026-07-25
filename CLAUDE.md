@@ -55,11 +55,16 @@ npm run prettify
 ```
 src/
 ├── index.tsx                  # Extension init: renders settings, creates popup trigger icons
-├── settings.ts                # ExtensionSettingsManager, migration strategies (F_1.4 → F_1.11)
+├── settings.ts                # ExtensionSettingsManager, migration strategies (F_1.4 → F_1.13)
 ├── constants.ts               # Default Handlebars prompt templates (14 configurable prompts)
 ├── generate.ts                # Core generation: builds context, compiles templates, calls LLM, parses response
 ├── request.ts                 # API wrappers: makeRequest (streaming), makePlainRequest, makeStructuredRequest<T>
 ├── parsers.ts                 # Response parsing: XML, JSON, plain text with graceful fallback
+├── browser-storage.ts         # Single persistence layer: localforage/IndexedDB + localStorage migration
+├── handlebars-helpers.ts      # Shared Handlebars helpers (add, join, is_not_empty, indent, json, xmlEscape)
+├── world-info-entries.ts      # Reads world info entries, optionally including disabled ones
+├── world-info-export.ts       # Builds the character object passed to the WI entry template
+├── world-info-selection.ts    # Dropdown items for world info, retaining renamed/missing selections
 ├── brainstorm-types.ts        # TypeScript interfaces for brainstorm sessions and messages (BrainstormSession, BrainstormMessage, ImageAttachment)
 ├── brainstorm-prompt-builder.ts # Builds initial brainstorm messages: system prompt + context blocks via Handlebars
 ├── image-utils.ts             # Image utilities: fileToDataUrl, uploadImage (/api/images/upload), imageUrlToDataUrl
@@ -104,10 +109,14 @@ User clicks Generate → generate.ts
 ### State Management
 
 - **React hooks** (`useState`, `useEffect`, `useCallback`, `useMemo`) for component state
-- **localStorage** for persistence:
+- **IndexedDB via localforage** for persistence, behind `browser-storage.ts` — components never touch
+  a storage API directly. Each key transparently migrates from its old `localStorage` entry on first
+  read, then deletes the legacy copy:
   - `charCreator` — current session (character fields, drafts, selections)
-  - `charCreator_brainstormSessions` — brainstorm chat session histories (saved + unsaved)
   - `charCreator_reviseSessions` — multi-turn revise chat histories
+  - `charCreator_brainstormSessions` — brainstorm chat session histories (saved + unsaved)
+  Loads report `migrated`/`recovered` and saves report `persisted`, so a corrupt payload or a full
+  quota surfaces as a toast instead of an exception.
 - **ExtensionSettingsManager** (sillytavern-utils-lib) for extension settings with versioned migrations
 
 ### SillyTavern Integration
