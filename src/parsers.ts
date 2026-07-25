@@ -44,43 +44,88 @@ function ensureArray(data: any, schema: any) {
   }
 }
 
+/**
+ * Matches when the *entire* response is a single fenced code block. The body may not itself
+ * contain a fence, otherwise two adjacent blocks would be swallowed as one.
+ */
+const FULL_CODE_BLOCK_REGEX = /^```(?:\w+)?[ \t]*\r?\n?((?:(?!```)[\s\S])*?)\r?\n?```$/;
+/** Matches the first fenced code block appearing anywhere in the response. */
+const INNER_CODE_BLOCK_REGEX = /```(?:\w+\n|\n)?([\s\S]*?)```/;
+
+/**
+ * Builds the ordered list of strings worth attempting to parse.
+ *
+ * Order matters. A response that is entirely one code fence is almost always the model
+ * following the format instructions, so that is tried first. The raw text comes next so that
+ * a bare (unfenced) structure still parses, and — importantly — so a response whose *content*
+ * happens to contain a code fence is not silently truncated to just that fence. Only if both
+ * fail do we fall back to the first inner fence, which covers models that wrap the structure
+ * in a fence but surround it with prose.
+ */
+function extractCandidates(content: string): string[] {
+  const trimmed = content.trim();
+  const candidates: string[] = [];
+
+  const fullMatch = trimmed.match(FULL_CODE_BLOCK_REGEX);
+  if (fullMatch) candidates.push(fullMatch[1].trim());
+
+  candidates.push(trimmed);
+
+  const innerMatch = trimmed.match(INNER_CODE_BLOCK_REGEX);
+  if (innerMatch) candidates.push(innerMatch[1].trim());
+
+  return [...new Set(candidates)];
+}
+
+function parseXmlCandidate(candidate: string, options: ParseOptions): object | string {
+  // For 'continue' functionality, the XML might be incomplete. We parse what we can.
+  // The validator is too strict for partial content, so we only apply it when a schema
+  // tells us the model was asked for a complete, well-formed structure.
+  if (options.schema) {
+    const validationResult = XMLValidator.validate(candidate);
+    if (validationResult !== true) {
+      throw new Error(`Model response is not valid XML: ${validationResult.err.msg}`);
+    }
+  }
+
+  let parsedXml = xmlParser.parse(candidate);
+  if (parsedXml.root) {
+    parsedXml = parsedXml.root;
+  } else if (!options.schema && parsedXml.response !== undefined) {
+    // Handle simple <response> tag for single-field generation. Skipped when a schema is in
+    // play: there the <response> tag is one property among several, and unwrapping it here
+    // would throw away its siblings (e.g. `justification`) and fail schema validation.
+    return parsedXml.response;
+  }
+  if (options.schema) {
+    ensureArray(parsedXml, options.schema);
+  }
+  return parsedXml;
+}
+
 export function parseResponse(
   content: string,
   format: 'xml' | 'json' | 'none',
   options: ParseOptions = {},
 ): object | string {
-  // Extract content from inside code blocks, handling language identifiers
-  const codeBlockRegex = /```(?:\w+\n|\n)?([\s\S]*?)```/;
-  const codeBlockMatch = content.match(codeBlockRegex);
-  let cleanedContent = codeBlockMatch ? codeBlockMatch[1].trim() : content.trim();
+  const candidates = extractCandidates(content);
+  // `none` is raw prose — never go hunting for an inner code block to unwrap.
+  const cleanedContent = candidates[0] ?? '';
 
   try {
     switch (format) {
       case 'xml':
-        // For 'continue' functionality, the XML might be incomplete. We parse what we can.
-        // The validator is too strict for partial content, so we bypass it in those cases.
-        // A simple heuristic: if it doesn't end with the closing root tag, it's likely partial.
-        if (options.schema) {
-          const validationResult = XMLValidator.validate(cleanedContent);
-          if (validationResult !== true) {
-            throw new Error(`Model response is not valid XML: ${validationResult.err.msg}`);
+      case 'json': {
+        let lastError: any;
+        for (const candidate of candidates) {
+          try {
+            return format === 'xml' ? parseXmlCandidate(candidate, options) : JSON.parse(candidate);
+          } catch (error: any) {
+            lastError = error;
           }
         }
-        let parsedXml = xmlParser.parse(cleanedContent);
-        if (parsedXml.root) {
-          parsedXml = parsedXml.root;
-        } else if (parsedXml.response) {
-          // Handle simple <response> tag for single-field generation
-          return parsedXml.response;
-        }
-        if (options.schema) {
-          ensureArray(parsedXml, options.schema);
-        }
-        return parsedXml;
-
-      case 'json':
-        const parsedJson = JSON.parse(cleanedContent);
-        return parsedJson;
+        throw lastError ?? new Error(`Model response is not valid ${format.toUpperCase()}.`);
+      }
 
       case 'none':
         return cleanedContent;
@@ -127,7 +172,9 @@ export function getPrefilled(content: string, format: 'xml' | 'json' | 'none'): 
     case 'xml':
       return `<response>${trimmedContent}`;
     case 'json':
-      return `{\n  "response": "${trimmedContent.replace(/"/g, '\\"')}`; // Basic escaping
+      // JSON.stringify handles quotes, backslashes, newlines and control characters; slicing off
+      // the trailing quote leaves the string literal open so the model can continue it.
+      return `{\n  "response": ${JSON.stringify(trimmedContent).slice(0, -1)}`;
     case 'none':
       return trimmedContent;
     default:

@@ -19,7 +19,13 @@ interface BrainstormChatProps {
   sessionForContext: Pick<Session, 'fields' | 'draftFields' | 'selectedCharacterIndexes' | 'selectedWorldNames'>;
 }
 
-export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSessionUpdate, contextToSend, sessionForContext }) => {
+export const BrainstormChat: FC<BrainstormChatProps> = ({
+  session,
+  onBack,
+  onSessionUpdate,
+  contextToSend,
+  sessionForContext,
+}) => {
   const [messages, setMessages] = useState<BrainstormMessage[]>(session.messages);
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -166,7 +172,11 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
 
       try {
         const hasVideo = messagesToSend.some((m) => m.images?.some((img) => img.mediaType === 'video'));
-        const apiMessages = buildApiMessages(messagesToSend, imageDataUrlCache.current, hasVideo && skipVideoRef.current);
+        const apiMessages = buildApiMessages(
+          messagesToSend,
+          imageDataUrlCache.current,
+          hasVideo && skipVideoRef.current,
+        );
 
         let responseContent: string;
         try {
@@ -545,7 +555,12 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
                       <div className="message-images">
                         {msg.images.map((img, idx) =>
                           isVideoAttachment(img) ? (
-                            <div key={idx} className="video-thumbnail-wrapper" title={img.name} onClick={() => window.open(img.url, '_blank')}>
+                            <div
+                              key={idx}
+                              className="video-thumbnail-wrapper"
+                              title={img.name}
+                              onClick={() => window.open(img.url, '_blank')}
+                            >
                               <video src={img.url} muted preload="metadata" />
                               <i className="fa-solid fa-play video-play-icon"></i>
                             </div>
@@ -582,7 +597,10 @@ export const BrainstormChat: FC<BrainstormChatProps> = ({ session, onBack, onSes
       {pendingImagePreviews.length > 0 && (
         <div className="pending-images-preview">
           {pendingImagePreviews.map((preview, index) => (
-            <div key={index} className={`pending-image-item ${isVideoFile(pendingImages[index]) ? 'video-thumbnail-wrapper' : ''}`}>
+            <div
+              key={index}
+              className={`pending-image-item ${isVideoFile(pendingImages[index]) ? 'video-thumbnail-wrapper' : ''}`}
+            >
               {isVideoFile(pendingImages[index]) ? (
                 <>
                   <video src={preview} muted preload="metadata" />

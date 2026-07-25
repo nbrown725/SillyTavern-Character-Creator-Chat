@@ -52,9 +52,8 @@ export const AlternateGreetings: FC<AlternateGreetingsProps> = ({
   };
 
   const handleGreetingChange = (index: number, field: 'value' | 'prompt', newContent: string) => {
-    const newGreetings = [...greetings];
-    newGreetings[index][field] = newContent;
-    onGreetingsChange(newGreetings);
+    // Copy the entry being edited; a shallow array copy would still mutate the caller's state objects.
+    onGreetingsChange(greetings.map((g, i) => (i === index ? { ...g, [field]: newContent } : g)));
   };
 
   const activeGreeting = greetings[activeTabIndex];

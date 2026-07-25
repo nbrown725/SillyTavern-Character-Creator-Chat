@@ -4,7 +4,6 @@ import { ExtensionSettings, settingsManager } from './settings.js';
 import { Session, globalContext } from './generate.js';
 import { Character } from 'sillytavern-utils-lib/types';
 import { WIEntry } from 'sillytavern-utils-lib/types/world-info';
-import { selected_group, this_chid } from 'sillytavern-utils-lib/config';
 
 export async function buildInitialBrainstormMessages(
   fields: Session['fields'],
@@ -95,10 +94,8 @@ export async function buildInitialBrainstormMessages(
     if (block.promptName === 'lorebookDefinitions' && !contextToSend.worldInfo) continue;
     if (block.promptName === 'existingFieldDefinitions' && !contextToSend.existingFields) continue;
     if (block.promptName === 'personaDescription' && !contextToSend.persona) continue;
-    if (block.promptName === 'chatHistory' && contextToSend.messages.type === 'none') continue;
-    if (this_chid === undefined && !selected_group && block.promptName === 'chatHistory') continue;
 
-    // Skip chat history for brainstorm sessions (no placeholder mechanism needed)
+    // Brainstorm sessions have no chat-history placeholder mechanism, so it is always skipped.
     if (block.promptName === 'chatHistory') continue;
 
     // Skip generation-specific prompts that don't apply to brainstorming

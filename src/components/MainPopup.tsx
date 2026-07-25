@@ -338,19 +338,23 @@ export const MainPopup: FC = () => {
         // @ts-ignore - since this is only for saving as world info entry
         delete promptSettings.worldInfoCharDefinition;
 
+        // Presets can be renamed or deleted out from under the selection; fall back rather than crash.
+        const mainContextPreset =
+          settings.mainContextTemplatePresets[settings.mainContextTemplatePreset] ??
+          settings.mainContextTemplatePresets['default'];
+        if (!mainContextPreset) throw new Error('Main context template preset not found.');
+
         const generatedContent = await runCharacterFieldGeneration({
           profileId: settings.profileId,
-          userPrompt: settings.promptPresets[settings.promptPreset].content,
+          userPrompt: settings.promptPresets[settings.promptPreset]?.content ?? '',
           buildPromptOptions,
           continueFrom,
           session,
           allCharacters,
           entriesGroupByWorldName,
           promptSettings,
-          formatDescription: { content: settings.prompts[`${settings.outputFormat}Format`].content },
-          mainContextList: settings.mainContextTemplatePresets[settings.mainContextTemplatePreset].prompts.filter(
-            (p) => p.enabled,
-          ),
+          formatDescription: { content: settings.prompts[`${settings.outputFormat}Format`]?.content ?? '' },
+          mainContextList: mainContextPreset.prompts.filter((p) => p.enabled),
           includeUserMacro: settings.contextToSend.persona,
           maxResponseToken: settings.maxResponseToken,
           targetField: targetField,
@@ -361,9 +365,10 @@ export const MainPopup: FC = () => {
         const isDraft = !isGreeting && !CHARACTER_FIELDS.includes(targetField as any);
         if (isGreeting) {
           const index = parseInt(targetField.split('_')[2]) - 1;
-          const newGreetings = [...greetings];
-          if (newGreetings[index]) newGreetings[index].value = generatedContent;
-          handleGreetingsChange(newGreetings);
+          if (greetings[index]) {
+            // Replace the entry instead of mutating it — these objects are the live session state.
+            handleGreetingsChange(greetings.map((g, i) => (i === index ? { ...g, value: generatedContent } : g)));
+          }
         } else {
           handleFieldChange(targetField, generatedContent, 'value', isDraft);
         }
@@ -473,6 +478,8 @@ export const MainPopup: FC = () => {
       `Override "${loadedCharacter.name}"? This cannot be undone.`,
     );
     if (!confirm) return;
+    // Spread the existing `data` block rather than replacing it, so v2/v3 fields this extension
+    // doesn't edit (creator_notes, character_book, extensions, tags, depth_prompt, ...) survive.
     const data: Character = {
       ...loadedCharacter,
       name: session.fields.name.value,
@@ -482,6 +489,7 @@ export const MainPopup: FC = () => {
       first_mes: session.fields.first_mes.value,
       mes_example: session.fields.mes_example.value,
       data: {
+        ...loadedCharacter.data,
         alternate_greetings: getGreetingsArray(),
         name: session.fields.name.value,
         description: session.fields.description.value,

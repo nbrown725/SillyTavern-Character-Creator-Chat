@@ -62,8 +62,7 @@ async function makeRequest(
             }
             return reject(new DOMException('Request aborted by user', 'AbortError'));
           }
-          if (!data) reject(new Error('No data received from LLM'));
-          if (error) return reject(error);
+          if (!data) return reject(new Error('No data received from LLM'));
           return streamCallbacks ? resolve({ content: previousText }) : resolve(data as ExtractedData);
         },
       },
@@ -170,7 +169,11 @@ export async function makeStructuredRequest<T extends z.ZodType<any, any, any>>(
  * Messages with images/videos are converted to OpenAI multimodal content arrays.
  * The imageDataUrls map provides base64 data URLs keyed by server path.
  */
-export function buildApiMessages(messages: BrainstormMessage[], imageDataUrls?: Map<string, string>, skipVideo?: boolean): Message[] {
+export function buildApiMessages(
+  messages: BrainstormMessage[],
+  imageDataUrls?: Map<string, string>,
+  skipVideo?: boolean,
+): Message[] {
   return messages.map((msg) => {
     if (!msg.images?.length) {
       return { role: msg.role, content: msg.content };

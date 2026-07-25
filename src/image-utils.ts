@@ -8,7 +8,7 @@ const VIDEO_SIZE_WARNING_BYTES = 50 * 1024 * 1024; // 50MB
 /** Maps MIME subtypes that don't match file extensions to the correct extension. */
 const MIME_TO_EXT: Record<string, string> = {
   'x-msvideo': 'avi',
-  'quicktime': 'mov',
+  quicktime: 'mov',
   'x-matroska': 'mkv',
   'x-ms-wmv': 'wmv',
   'x-flv': 'flv',
@@ -26,6 +26,9 @@ export function fileToDataUrl(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
+
+/** Monotonic counter so files uploaded in the same millisecond don't collide on the server. */
+let uploadCounter = 0;
 
 /**
  * Uploads a media file (image or video) to the ST server and returns an ImageAttachment.
@@ -45,7 +48,9 @@ export async function uploadImage(file: File): Promise<ImageAttachment> {
   const base64Data = dataUrl.split(',')[1];
   const mimeSubtype = file.type.split('/')[1] || 'png';
   const extension = MIME_TO_EXT[mimeSubtype] || mimeSubtype;
-  const fileNamePrefix = `brainstorm_${Date.now()}`;
+  // Attaching several files at once fires these uploads in the same tick, so `Date.now()` alone
+  // produces identical names and the server overwrites all but the last.
+  const fileNamePrefix = `brainstorm_${Date.now()}_${uploadCounter++}`;
 
   const response = await fetch('/api/images/upload', {
     method: 'POST',

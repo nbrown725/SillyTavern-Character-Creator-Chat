@@ -60,7 +60,7 @@ src/
 ├── generate.ts                # Core generation: builds context, compiles templates, calls LLM, parses response
 ├── request.ts                 # API wrappers: makeRequest (streaming), makePlainRequest, makeStructuredRequest<T>
 ├── parsers.ts                 # Response parsing: XML, JSON, plain text with graceful fallback
-├── brainstorm-types.ts        # Zod schemas for brainstorm sessions and messages (BrainstormSession, BrainstormMessage, ImageAttachment)
+├── brainstorm-types.ts        # TypeScript interfaces for brainstorm sessions and messages (BrainstormSession, BrainstormMessage, ImageAttachment)
 ├── brainstorm-prompt-builder.ts # Builds initial brainstorm messages: system prompt + context blocks via Handlebars
 ├── image-utils.ts             # Image utilities: fileToDataUrl, uploadImage (/api/images/upload), imageUrlToDataUrl
 ├── revise-prompt-builder.ts   # Constructs multi-turn revise session prompts
@@ -134,8 +134,8 @@ Multi-turn freeform chat for developing character concepts. The "Brainstorm" tab
 
 **Data types** (`brainstorm-types.ts`):
 - `BrainstormMessage` — extends Message with `id`, `images?: ImageAttachment[]`, `isInitial?: boolean`
-- `BrainstormSession` — `id` (bs-{timestamp}), `name`, `createdAt`, `messages`, `contextToSend`, `saved` flag
-- `ImageAttachment` — `url` (server path or data URL) and `name`
+- `BrainstormSession` — `id` (bs-{timestamp}), `name`, `createdAt`, `messages`, `contextConfig`, `saved` flag
+- `ImageAttachment` — `url` (server path or data URL), `name`, and optional `mediaType` (`'image' | 'video'`)
 
 **Session management** (`BrainstormSessionManager.tsx`):
 - Two lists: saved sessions and unsaved "workspace" sessions (max 5 unsaved enforced)
@@ -143,7 +143,7 @@ Multi-turn freeform chat for developing character concepts. The "Brainstorm" tab
 - Save action moves session from workspace to saved list with a user-provided name
 
 **Chat UI** (`BrainstormChat.tsx`):
-- Sends messages via `makePlainRequest()` with streaming display
+- Sends messages via `makePlainRequest()` (non-streaming; the reply renders once complete)
 - Image support: paste from clipboard, file upload, or file picker → uploaded to `/api/images/upload`
 - Image data URLs cached in-memory (`imageDataUrlCache` ref) and converted on session load for persistence
 - Message editing: user can edit prior messages, triggering re-send with updated history

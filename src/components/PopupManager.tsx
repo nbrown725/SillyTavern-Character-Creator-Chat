@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Popup } from 'sillytavern-utils-lib/components/react';
 import { POPUP_TYPE } from 'sillytavern-utils-lib/types/popup';
 import { MainPopup } from './MainPopup.js';
@@ -6,12 +6,20 @@ import { MainPopup } from './MainPopup.js';
 export const PopupManager = () => {
   const [isPopupVisible, setIsPopupVisible] = useState(false);
 
-  // Expose functions to the global scope to be called by vanilla JS
-  const openPopup = () => setIsPopupVisible(true);
-  const closePopup = () => setIsPopupVisible(false);
+  const openPopup = useCallback(() => setIsPopupVisible(true), []);
+  const closePopup = useCallback(() => setIsPopupVisible(false), []);
 
-  // @ts-ignore
-  window.openCharacterCreatorPopup = openPopup;
+  // Expose the opener to the global scope so the injected toolbar icons can call it.
+  // Done in an effect rather than during render so it isn't a render side effect, and so the
+  // global is cleaned up if this root is ever unmounted.
+  useEffect(() => {
+    // @ts-ignore
+    window.openCharacterCreatorPopup = openPopup;
+    return () => {
+      // @ts-ignore
+      if (window.openCharacterCreatorPopup === openPopup) delete window.openCharacterCreatorPopup;
+    };
+  }, [openPopup]);
 
   if (!isPopupVisible) {
     return null;

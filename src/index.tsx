@@ -8,13 +8,21 @@ import './styles/main.scss';
 
 const globalContext = SillyTavern.getContext();
 
+const ICON_CLASS = 'charCreator-icon';
+
 export async function init() {
   // --- Settings Panel Rendering ---
+  const extensionsSettings = document.querySelector('#extensions_settings');
+  if (!extensionsSettings) {
+    console.error(`[${extensionName}] #extensions_settings not found; settings panel not rendered.`);
+    return;
+  }
+
   const settingsHtml: string = await globalContext.renderExtensionTemplateAsync(
     `third-party/${extensionName}`,
     'templates/settings',
   );
-  document.querySelector('#extensions_settings')!.insertAdjacentHTML('beforeend', settingsHtml);
+  extensionsSettings.insertAdjacentHTML('beforeend', settingsHtml);
 
   const settingsRootElement = document.createElement('div');
   const settingContainer = document.querySelector('.charCreator_settings .inline-drawer-content') as HTMLElement;
@@ -29,7 +37,7 @@ export async function init() {
   }
 
   // --- Main Popup Icon and Trigger Logic ---
-  const popupIconHtml = `<div class="menu_button fa-solid fa-user-astronaut interactable charCreator-icon" title="Character Creator"></div>`;
+  const popupIconHtml = `<div class="menu_button fa-solid fa-user-astronaut interactable ${ICON_CLASS}" title="Character Creator"></div>`;
 
   const targets = [
     document.querySelector('.form_create_bottom_buttons_block'),
@@ -48,6 +56,8 @@ export async function init() {
 
   targets.forEach((target) => {
     if (!target) return;
+    // Guard against a second init pass leaving duplicate icons behind.
+    if (target.querySelector(`.${ICON_CLASS}`)) return;
 
     // 1. Create a new icon element for each target
     const iconWrapper = document.createElement('div');
@@ -78,7 +88,11 @@ function importCheck(): boolean {
 if (!importCheck()) {
   st_echo('error', `[${extensionName}] Make sure ST is updated.`);
 } else {
-  initializeSettings().then(() => {
-    init();
-  });
+  initializeSettings()
+    .then(() => init())
+    .catch((error) => {
+      // A throw here aborts the rest of setup silently, so surface it rather than swallowing it.
+      console.error(`[${extensionName}] Initialization failed:`, error);
+      st_echo('error', `[${extensionName}] Initialization failed: ${error?.message ?? error}`);
+    });
 }

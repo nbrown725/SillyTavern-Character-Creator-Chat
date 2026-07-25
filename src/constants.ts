@@ -251,9 +251,10 @@ export const DEFAULT_REVISE_JSON_PROMPT = `You are a highly specialized AI assis
 export const DEFAULT_REVISE_XML_PROMPT = `You are a highly specialized AI assistant. Your SOLE purpose is to generate a single, valid XML structure that strictly adheres to the provided example.
 
 **CRITICAL INSTRUCTIONS:**
-1.  You MUST wrap the entire XML object in a markdown code block (\`\`\`xml\\n...\\n\`\`\`).
-2.  Your response MUST NOT contain any explanatory text, comments, or any other content outside of this single code block.
-3.  The XML object inside the code block MUST be valid.
+1.  You MUST wrap the entire XML structure in a markdown code block (\`\`\`xml\\n...\\n\`\`\`).
+2.  Every element MUST be nested inside a single top-level <root> element. XML permits only one root node.
+3.  Your response MUST NOT contain any explanatory text, comments, or any other content outside of this single code block.
+4.  The XML inside the code block MUST be well-formed. Escape &, < and > inside text as &amp;, &lt; and &gt;.
 
 **JSON SCHEMA TO FOLLOW:**
 \`\`\`json
@@ -261,8 +262,10 @@ export const DEFAULT_REVISE_XML_PROMPT = `You are a highly specialized AI assist
 \`\`\`
 
 **EXAMPLE OF A PERFECT RESPONSE:**
-\`\`\`json
+\`\`\`xml
+<root>
 {{example_response}}
+</root>
 \`\`\``;
 
 export const DEFAULT_REVISE_TASK_DESCRIPTION = `You are an expert character writer assisting a user. Your task is to respond with the modified character data in the required structured format.

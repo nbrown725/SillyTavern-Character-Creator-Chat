@@ -93,23 +93,23 @@ export async function runCharacterFieldGeneration({
     throw new Error(`Connection profile with ID "${profileId}" not found.`);
   }
 
-  const selectedApi = profile.api ? globalContext.CONNECT_API_MAP[profile.api].selected : undefined;
+  const selectedApi = profile.api ? globalContext.CONNECT_API_MAP[profile.api]?.selected : undefined;
   if (!selectedApi) {
     throw new Error(`Could not determine API for profile "${profile.name}".`);
   }
 
   const templateData: Record<string, any> = {};
 
-  templateData['char'] = session.fields.name.value ?? '{{char}}';
+  // `||` not `??`: an empty name must fall back to the {{char}} macro, not render as an empty string.
+  templateData['char'] = session.fields.name?.value || '{{char}}';
   templateData['user'] = includeUserMacro && name1 ? name1 : '{{user}}';
   templateData['persona'] = '{{persona}}'; // ST going to replace this with the actual persona description
 
   templateData['targetField'] = targetField;
   templateData['userInstructions'] = Handlebars.compile(userPrompt.trim(), { noEscape: true })(templateData);
-  templateData['fieldSpecificInstructions'] = Handlebars.compile(
-    session.draftFields[targetField]?.prompt ?? session.fields[targetField as CharacterFieldName]?.prompt,
-    { noEscape: true },
-  )({
+  const fieldSpecificPrompt =
+    session.draftFields[targetField]?.prompt ?? session.fields[targetField as CharacterFieldName]?.prompt ?? '';
+  templateData['fieldSpecificInstructions'] = Handlebars.compile(fieldSpecificPrompt, { noEscape: true })({
     ...templateData,
     char: targetField === 'mes_example' ? '{{char}}' : templateData.char,
     user: targetField === 'mes_example' ? '{{user}}' : templateData.user,

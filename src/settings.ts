@@ -21,7 +21,7 @@ import { globalContext } from './generate.js';
 
 export const extensionName = 'SillyTavern-Character-Creator-Chat';
 export const VERSION = '0.3.0';
-export const FORMAT_VERSION = 'F_1.11';
+export const FORMAT_VERSION = 'F_1.12';
 
 export type ThinkingLevel = 'default' | 'min' | 'low' | 'medium' | 'high' | 'max';
 
@@ -472,7 +472,7 @@ export async function initializeSettings(): Promise<void> {
                 },
 
                 // Generic Prompt Presets
-                promptPreset: previous?.default ?? 'default',
+                promptPreset: previous?.promptPreset ?? 'default',
                 promptPresets: previous?.promptPresets ?? {
                   default: {
                     content:
@@ -529,8 +529,8 @@ export async function initializeSettings(): Promise<void> {
                 },
 
                 // World Info
-                showSaveAsWorldInfoEntry: previous?.showSaveAsWorldInfoEntry ?? {
-                  show: previous?.showSaveAsWorldInfoEntry.show ?? false,
+                showSaveAsWorldInfoEntry: {
+                  show: previous?.showSaveAsWorldInfoEntry?.show ?? false,
                 },
               };
             },
@@ -740,6 +740,26 @@ export async function initializeSettings(): Promise<void> {
               };
             },
           },
+          {
+            from: 'F_1.11',
+            to: 'F_1.12',
+            action(previous: ExtensionSettings): ExtensionSettings {
+              const response = structuredClone(previous) as ExtensionSettings;
+
+              // The old default asked for a root-less XML fragment, which is not valid XML and
+              // was rejected by the parser before it ever reached the model's content. Refresh it
+              // for anyone who never customised the template.
+              if (response.prompts?.reviseXmlPrompt?.isDefault !== false) {
+                response.prompts.reviseXmlPrompt = {
+                  content: DEFAULT_PROMPT_CONTENTS.reviseXmlPrompt,
+                  isDefault: true,
+                  label: 'Revise Session (XML Mode)',
+                };
+              }
+
+              return response;
+            },
+          },
         ],
       })
       .then((_result) => {
@@ -757,9 +777,16 @@ export async function initializeSettings(): Promise<void> {
             if (result) {
               settingsManager.resetSettings();
               st_echo('success', `[${extensionName}] Settings reset. Reloading may be required.`);
-              resolve();
+            } else {
+              st_echo('warning', `[${extensionName}] Continuing with default settings for this session.`);
             }
-          });
+          })
+          .catch((popupError: any) => {
+            console.error(`[${extensionName}] Failed to show settings reset prompt:`, popupError);
+          })
+          // Resolve either way. Leaving this promise pending would stop init() from ever running,
+          // silently killing the whole extension with no further indication of why.
+          .finally(() => resolve());
       });
   });
 }

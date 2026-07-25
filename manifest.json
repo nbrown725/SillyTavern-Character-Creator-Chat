@@ -1,8 +1,6 @@
 {
     "display_name": "Character Creator",
     "loading_order": 300,
-    "requires": [],
-    "optional": [],
     "js": "dist/index.js",
     "css": "dist/style.css",
     "author": "bmen25124",

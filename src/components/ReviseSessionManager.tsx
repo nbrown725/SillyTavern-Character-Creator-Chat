@@ -90,6 +90,9 @@ export const ReviseSessionManager: FC<ReviseSessionManagerProps> = ({
       );
       newSession.messages = initialMsgs;
 
+      // Persist on creation. Previously a session only reached storage once its first message was
+      // sent, so naming a session and then going Back silently discarded it.
+      saveAllSessions([...allSessions, newSession]);
       setActiveSession(newSession);
     } catch (error: any) {
       console.error('Failed to create session:', error);
