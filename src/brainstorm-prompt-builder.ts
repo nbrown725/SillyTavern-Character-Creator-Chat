@@ -106,6 +106,8 @@ export async function buildInitialBrainstormMessages(
       'reviseJsonPrompt',
       'reviseXmlPrompt',
       'brainstormSystemPrompt',
+      // Appended after the transcript by the extraction call, never part of the opening context.
+      'brainstormExtractPrompt',
     ];
     if (irrelevantPrompts.includes(block.promptName)) continue;
 

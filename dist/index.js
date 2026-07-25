@@ -24167,7 +24167,9 @@ async function Y1(t, r, a, s, l) {
       "reviseTaskDescription",
       "reviseJsonPrompt",
       "reviseXmlPrompt",
-      "brainstormSystemPrompt"
+      "brainstormSystemPrompt",
+      // Appended after the transcript by the extraction call, never part of the opening context.
+      "brainstormExtractPrompt"
     ].includes(_.promptName)) continue;
     const m = u.prompts[_.promptName];
     if (!m || m.content.includes("{{activeFormatInstructions}}")) continue;
